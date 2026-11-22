@@ -1,6 +1,6 @@
 {
   "web": {
-    "ver": "5.0.0",
+    "ver": "5.0.1",
     "files": {
       "js": "web/app.js",
       "css": "web/style.css",
@@ -11,5 +11,5 @@
     "ver": "1.1.0",
     "zip": "roku/NxTvLib.zip"
   },
-  "notes": "Aba Eventos do dia e botão Atualizar app"
+  "notes": "Aba Eventos do dia, botão Atualizar app e correção do Carregando em tela cheia"
 }

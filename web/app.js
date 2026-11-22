@@ -9,7 +9,7 @@
     PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, FF: 417, RW: 412, DONE: 65376, CANCEL: 65385, PGUP: 33, PGDN: 34, MENU: 1082 };
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid || /android=1/.test(location.search);
-  var APP_VER = '5.0.0';
+  var APP_VER = '5.0.1';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   function bridge(fn) { try { if (window.NxAndroid && NxAndroid[fn]) NxAndroid[fn](); } catch (e) {} }
   function focusIn(el) { el.focus(); if (ANDROID) bridge('showKeyboard'); }
@@ -869,7 +869,7 @@
       renderNow(); if (S.mode === 'main') renderItems();
     },
     loadingUI: function (on) {
-      if (S.mode === 'full') { if (on) show($('fs-load')); else hide($('fs-load')); }
+      if (S.mode === 'full') { hide($('pv-msg')); if (on) show($('fs-load')); else hide($('fs-load')); }
       else pvMsg(on ? 'Carregando...' : '');
     },
     fail: function () {
