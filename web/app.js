@@ -9,7 +9,7 @@
     PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, FF: 417, RW: 412, DONE: 65376, CANCEL: 65385, PGUP: 33, PGDN: 34, MENU: 1082 };
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid || /android=1/.test(location.search);
-  var APP_VER = '5.0.5';
+  var APP_VER = '5.0.6';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   function bridge(fn) { try { if (window.NxAndroid && NxAndroid[fn]) NxAndroid[fn](); } catch (e) {} }
   function focusIn(el) { el.focus(); if (ANDROID) bridge('showKeyboard'); }
@@ -193,6 +193,7 @@
               if (k === 'tvg-logo') cur.logo = m[2];
               else if (k === 'group-title') cur.group = m[2];
               else if (k === 'tvg-name') cur.tn = m[2];
+              else if (k === 'tvg-id') cur.tid = m[2];
             }
             var st = l.replace(re, ''), ci = st.indexOf(',');
             cur.name = ci > -1 ? trim(st.substring(ci + 1)) : '';
@@ -202,7 +203,7 @@
           c = cur || { name: l, logo: '', group: '' };
           var gname = c.group || 'Sem categoria';
           if (gi['g_' + gname]) gname = gi['g_' + gname]; else gi['g_' + gname] = gname;
-          out.push({ name: c.name, logo: c.logo, group: gname, url: l });
+          out.push({ name: c.name, logo: c.logo, group: gname, url: l, eid: c.tid || '' });
           cur = null;
         }
       }
@@ -295,7 +296,7 @@
       S.groups.series = [{ name: 'Todas as séries', kind: 'series', items: allS }].concat(groupsFrom(allS, 'series', seObj, gnorm));
       S.groups.search = [{ name: 'Digite no campo de pesquisa', kind: 'none', items: [] }];
       S.query = '';
-      buildFav();
+      buildFav(); buildRecent();
       onProg(1); done();
     }
     step();
@@ -379,7 +380,7 @@
         a = d.ls[i]; nm = a.name || 'Sem nome';
         var cid = 'c' + a.category_id, gname = catName[cid] || 'Sem categoria';
         url = lb + a.stream_id + '.ts';
-        var c = { name: nm, logo: a.stream_icon || '', group: gname, url: url, type: 'live', adult: catAdult[cid] === 1 || a.is_adult == 1 || ADULT_N.test(norm(nm)), o: parseInt(a.num, 10) || (i + 1) };
+        var c = { name: nm, logo: a.stream_icon || '', group: gname, url: url, type: 'live', adult: catAdult[cid] === 1 || a.is_adult == 1 || ADULT_N.test(norm(nm)), o: parseInt(a.num, 10) || (i + 1), eid: a.epg_channel_id || '', noepg: !a.epg_channel_id };
         gnorm['g_' + gname] = catAdult[cid] === 1 ? 1 : 0;
         S.byUrl[url] = S.ch.length; live.push(S.ch.length); S.ch.push(c);
       }
@@ -405,7 +406,7 @@
       S.groups.search = [{ name: 'Digite no campo de pesquisa', kind: 'none', items: [] }];
       S.query = '';
       d = null;
-      buildFav();
+      buildFav(); buildRecent();
       openMain(true);
       if (cacheKey && cacheOn()) { pendingCache = { key: cacheKey, url: cr.base + '|' + cr.u + '|' + cr.p, text: cacheTxt }; saveCacheLater(); }
     }, 30);
@@ -575,6 +576,72 @@
       }
     }
     S.groups.fav = [{ name: 'Canais', kind: 'live', items: sortIdx(l, chObj) }, { name: 'Filmes', kind: 'movie', items: sortIdx(m, chObj) }, { name: 'Séries', kind: 'series', items: sortIdx(se, seObj) }];
+  }
+
+  /* ================= assistidos recentemente (5 por seção) ================= */
+  var REC_N = 5, REC_NAME = 'Recém assistidos', recLiveT;
+  function allLiveIdx() { var g = S.groups.live || []; return g[0] && g[0].recent ? 1 : 0; }
+  function allLive() { return (S.groups.live || [])[allLiveIdx()]; }
+  function recAdd(sec, key, o) {
+    if (!S.recent) S.recent = {};
+    var arr = S.recent[sec] || [], i;
+    for (i = arr.length - 1; i >= 0; i--) if (arr[i].k === key) arr.splice(i, 1);
+    arr.unshift({ k: key, n: o.name, l: o.logo || '', g: o.group || '', id: o.id || null, a: o.adult ? 1 : 0 });
+    if (arr.length > REC_N) arr.length = REC_N;
+    S.recent[sec] = arr; save('nx_recent', S.recent);
+    buildRecent(sec);
+    if (S.mode === 'main' && S.sec === sec) renderAll();
+  }
+  // canal ao vivo entra nos recentes depois de 10 s em tela cheia (zapeando rápido não conta)
+  function recLiveWatch() {
+    clearTimeout(recLiveT);
+    recLiveT = setTimeout(function () {
+      var c = S.cur;
+      if (c && c.type !== 'movie' && c.type !== 'series' && S.mode === 'full' && S.fullKind === 'live') recAdd('live', 'u:' + c.url, c);
+    }, 10000);
+  }
+  function recVod(c) {
+    if (c.type === 'series') {
+      var se = S.series[c.sid];
+      if (se) recAdd('series', favKeyS(se), { name: se.name, logo: se.logo, group: se.group, id: se.id, adult: se.adult });
+    } else recAdd('movie', 'u:' + c.url, c);
+  }
+  function recResolve(sec) {
+    var arr = (S.recent && S.recent[sec]) || [], out = [], want = {}, got = {}, i, v, j;
+    if (sec !== 'series') {
+      for (i = 0; i < arr.length; i++) want[arr[i].k.substring(2)] = 1;
+      if (S.byUrl) { for (var u in want) if (S.byUrl[u] !== undefined) got[u] = S.byUrl[u]; }
+      else for (i = 0; i < S.ch.length; i++) if (want[S.ch[i].url] && got[S.ch[i].url] === undefined && S.ch[i].type !== 'series') got[S.ch[i].url] = i;
+    }
+    for (i = 0; i < arr.length; i++) {
+      v = arr[i];
+      if (sec === 'series') {
+        var s = S.sKey['s_' + v.k.substring(2)];
+        if (s === undefined) { if (!v.id || !S.api) continue; s = seriesFor(v.n, v.l, v.g, v.id); if (v.a) S.series[s].adult = true; }
+        out.push(s);
+      } else {
+        var url = v.k.substring(2);
+        j = got[url];
+        if (j === undefined) {
+          if (sec === 'live' || !S.byUrl) continue;
+          j = S.ch.length; S.byUrl[url] = j;
+          S.ch.push({ name: v.n, logo: v.l, group: v.g, url: url, type: 'movie', adult: !!v.a });
+        }
+        out.push(j);
+      }
+    }
+    return out;
+  }
+  // grupo "Assistidos recentemente" sempre no topo de TV ao Vivo, Filmes e Séries
+  function buildRecent(only) {
+    var secs = only ? [only] : ['live', 'movie', 'series'];
+    for (var i = 0; i < secs.length; i++) {
+      var sec = secs[i], gs = S.groups[sec]; if (!gs) continue;
+      var g = gs[0] && gs[0].recent ? gs[0] : null;
+      if (!g) { g = { name: REC_NAME, kind: sec, items: [], recent: true }; gs.unshift(g); if (only && S.pos[sec]) S.pos[sec].c++; }
+      g.items = recResolve(sec);
+      if (only && S.pos[sec] && S.pos[sec].c === 0) S.pos[sec].i = 0;
+    }
   }
   function isFav(kind, idx) {
     if (kind === 'series') return !!S.favs[favKeyS(S.series[idx])];
@@ -814,6 +881,7 @@
       this.stop(true);
       var g = ++this.gen; this.cur = at.eng;
       this.active = true; S.cur = c;
+      if (!vod) recLiveWatch();
       if (!vod) { var changed = S.live !== c; S.live = c; save('nx_last', c.url); if (changed || !$('epg').innerHTML) loadEpg(); }
       addClass(document.body, 'playing');
       pvMsg('');
@@ -1096,8 +1164,8 @@
       h += '<div class="ev-info">' + st + (e.sub ? '<br>' + esc(e.sub) : '') + (e.venue ? '<br>' + esc(e.venue) : '') + '</div>';
       var where;
       if (e.ch && e.ch.length) {
-        var nms = []; for (var w = 0; w < Math.min(3, e.ch.length); w++) nms.push(S.ch[e.ch[w]].name);
-        where = '<b>Onde passa:</b> ' + esc(nms.join(' · ')) + (e.ch.length > 3 ? ' e mais ' + (e.ch.length - 3) : '');
+        var nms = []; for (var w = 0; w < e.ch.length && nms.length < 3; w++) if (nms.indexOf(S.ch[e.ch[w]].name) < 0) nms.push(S.ch[e.ch[w]].name);
+        where = '<b>' + (e.weak ? 'Provável:' : 'Onde passa:') + '</b> ' + esc(nms.join(' · ')) + (e.ch.length > nms.length && nms.length >= 3 ? ' e outros' : '');
       } else if (!S.ch.length) where = 'Carregue uma lista para ver os canais';
       else if (Ev.scanning) where = 'Procurando o canal na programação... ' + Ev.scanDone + ' de ' + Ev.scanTotal;
       else where = 'Canal não encontrado na programação';
@@ -1105,23 +1173,50 @@
       $('event-panel').innerHTML = h;
     },
     // procura o jogo na programação dos canais de esporte da lista (Xtream) e devolve os canais, do melhor para o pior
-    SPORT_CH: /espor|sport|premiere|espn|combate|ufc|dazn|tnt|band|globo|caze|xsport|goat|prime|amazon|paramount|disney|star\+?|max|apple|nba|nfl|f1|formula|record|sbt|futebol|soccer|fight|luta|onefootball|canal ?gol|cbf|conmebol|libertadores|champions|premier|laliga|serie a|bundesliga|eleven|sky|fox|bein|nosso futebol|placar|jogo|ppv/,
+    SPORT_CH: /espor|sport|premiere|espn|combate|ufc|dazn|tnt|band|globo|caze|xsport|goat|prime|amazon|paramount|disney|star\+?|max|apple|nba|nfl|f1|formula|record|sbt|futebol|soccer|fight|luta|onefootball|canal ?gol|cbf|conmebol|libertadores|champions|premier|laliga|serie a|bundesliga|eleven|sky|fox|bein|nosso futebol|placar|jogo|ppv|evento|tyc|gol ?tv/,
+    // canais que quase sempre passam esporte: procurados primeiro
+    SPORT_TOP: /espn|sportv|premiere|combate|tnt ?sport|dazn|caze|ufc|nba|nfl|band ?sport|xsport|goat|esporte|sports?\b|fight|ppv|evento|futebol|soccer|nosso futebol|placar|onefootball|canal ?gol|eleven|bein|tyc|gol ?tv|f1|formula|premier|libertadores|champions|disney|star\+|prime video|paramount|max\b|apple/,
     STOP: { fc: 1, sc: 1, ec: 1, cf: 1, ac: 1, as: 1, ca: 1, cr: 1, se: 1, de: 1, da: 1, do: 1, das: 1, dos: 1, the: 1, club: 1, clube: 1, united: 1, city: 1, real: 1, sporting: 1, atletico: 1, athletic: 1, sport: 1, esporte: 1, futebol: 1, san: 1, santa: 1, saint: 1, deportivo: 1, olympique: 1, new: 1, york: 1, los: 1, angeles: 1, las: 1, vegas: 1, grand: 1, prix: 1, night: 1, fight: 1 },
+    // nomes como aparecem na programação brasileira
+    ALIAS: { 'paris saint germain': ['psg'], 'psg': ['paris saint germain'], 'manchester united': ['man united', 'manchester utd', 'man utd'], 'manchester city': ['man city'], 'man united': ['manchester united'], 'man city': ['manchester city'],
+      'atletico mg': ['atletico mineiro', 'galo'], 'atletico mineiro': ['atletico mg'], 'athletico pr': ['athletico paranaense', 'athletico'], 'athletico paranaense': ['athletico pr', 'athletico'],
+      'red bull bragantino': ['bragantino'], 'rb bragantino': ['bragantino'], 'bragantino': ['red bull bragantino'], 'vasco da gama': ['vasco'], 'internacional': ['inter'], 'gremio': ['gremio'],
+      'atletico madrid': ['atletico de madrid'], 'bayern munich': ['bayern de munique', 'bayern'], 'inter milan': ['inter de milao', 'internazionale'], 'internazionale': ['inter de milao', 'inter milan'],
+      'ac milan': ['milan'], 'sevilla': ['sevilha'], 'barcelona': ['barca'], 'juventus': ['juve'], 'tottenham hotspur': ['tottenham'], 'wolverhampton wanderers': ['wolves', 'wolverhampton'],
+      'borussia dortmund': ['dortmund'], 'bayer leverkusen': ['leverkusen'], 'sporting cp': ['sporting'], 'benfica': ['benfica'], 'porto': ['fc porto'] },
+    // palavras do campeonato na programação (usadas só quando o título não tem os times)
+    LG: { 'NFL': ['nfl', 'futebol americano'], 'NBA': ['nba'], 'UFC': ['ufc'], 'Fórmula 1': ['formula 1', 'f1', 'formula1', 'grande premio'],
+      'Brasileirão Série A': ['brasileirao', 'campeonato brasileiro', 'serie a'], 'Brasileirão Série B': ['serie b', 'brasileirao serie b'], 'Copa do Brasil': ['copa do brasil'],
+      'Paulistão': ['paulistao', 'campeonato paulista'], 'Carioca': ['carioca', 'cariocao'], 'Mineiro': ['mineiro'], 'Gauchão': ['gauchao'],
+      'Libertadores': ['libertadores'], 'Sul-Americana': ['sul americana', 'sudamericana'], 'Recopa': ['recopa'], 'Eliminatórias': ['eliminatorias'],
+      'Copa do Mundo': ['copa do mundo'], 'Mundial de Clubes': ['mundial de clubes'], 'Copa Intercontinental': ['intercontinental'], 'Copa América': ['copa america'],
+      'Champions League': ['champions', 'liga dos campeoes'], 'Europa League': ['europa league', 'liga europa'], 'Conference League': ['conference league'],
+      'Premier League': ['premier league', 'campeonato ingles'], 'LaLiga': ['laliga', 'la liga', 'campeonato espanhol'], 'Série A Italiana': ['calcio', 'campeonato italiano'],
+      'Bundesliga': ['bundesliga', 'campeonato alemao'], 'Ligue 1': ['ligue 1', 'campeonato frances'], 'Liga Portugal': ['liga portugal', 'campeonato portugues'],
+      'Argentino': ['campeonato argentino', 'liga profesional'], 'MLS': ['mls'], 'Liga Saudita': ['saudi', 'saudita'], 'Copa da Inglaterra': ['fa cup', 'copa da inglaterra'], 'Copa do Rei': ['copa do rei', 'copa del rey'] },
+    REP: / (reprise|compacto|melhores momentos|vt|resumo|gols da rodada|highlights|replay|reapresentacao) /,
     keys: function (names) {
-      var ph = [], tk = [], i, j, w;
+      var ph = [], tk = [], i, j, w, x;
+      function addPh(p) { if (p.length >= 3 && ph.indexOf(' ' + p + ' ') < 0) ph.push(' ' + p + ' '); }
       for (i = 0; i < names.length; i++) {
         if (!names[i]) continue;
         var n = trim(norm(names[i]).replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' '));
-        if (n.length >= 3) ph.push(n);
+        addPh(n);
+        if (Ev.ALIAS[n]) for (x = 0; x < Ev.ALIAS[n].length; x++) addPh(Ev.ALIAS[n][x]);
         w = n.split(' ');
-        for (j = 0; j < w.length; j++) if (w[j].length >= 5 && !Ev.STOP[w[j]]) tk.push(w[j]);
+        for (j = 0; j < w.length; j++) if (w[j].length >= 5 && !Ev.STOP[w[j]]) tk.push(' ' + w[j] + ' ');
       }
       return { ph: ph, tk: tk };
     },
     hit: function (k, txt) {
       var i;
       for (i = 0; i < k.ph.length; i++) if (txt.indexOf(k.ph[i]) >= 0) return true;
-      for (i = 0; i < k.tk.length; i++) if ((' ' + txt + ' ').indexOf(' ' + k.tk[i] + ' ') >= 0) return true;
+      for (i = 0; i < k.tk.length; i++) if (txt.indexOf(k.tk[i]) >= 0) return true;
+      return false;
+    },
+    lgHit: function (e, txt) {
+      var l = Ev.LG[e.league]; if (!l) return false;
+      for (var i = 0; i < l.length; i++) if (txt.indexOf(' ' + l[i] + ' ') >= 0) return true;
       return false;
     },
     clean: function (t) { return ' ' + trim(norm(t).replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ')) + ' '; },
@@ -1129,18 +1224,29 @@
       if (!e._k) e._k = { h: Ev.keys(e.home ? [e.home, e.hfull] : [e.title]), a: Ev.keys(e.away ? [e.away, e.afull] : []) };
       return e._k;
     },
-    // nota do programa para o evento: 4 = os dois times, 2/3 = um time ou o nome do evento
+    // nota do programa para o evento: 4 = os dois times na hora do jogo, 3 = os dois times com horário deslocado
+    // (programação com fuso errado), 2/3 = um time ou o nome do evento, 1 = só o campeonato na hora do jogo
     score: function (e, pg) {
-      if (!(pg.s <= e.t + 45 * 60000 && pg.e >= e.t + 10 * 60000)) return 0;
-      var k = Ev.evKeys(e), txt = Ev.clean(pg.t + ' ' + (pg.d || ''));
-      var h = Ev.hit(k.h, txt), a = e.away ? Ev.hit(k.a, txt) : false;
-      return h && a ? 4 : (h || a) ? (e.away ? 2 : 3) : 0;
+      var t = e.t, tight = pg.s <= t + 45 * 60000 && pg.e >= t + 10 * 60000;
+      if (!tight && !(pg.s <= t + 4 * 3600000 && pg.e >= t - 4 * 3600000)) return 0;
+      var txt = Ev.clean(pg.t + ' ' + (pg.d || ''));
+      if (Ev.REP.test(txt)) return 0;
+      var k = Ev.evKeys(e), h = Ev.hit(k.h, txt), a = e.away ? Ev.hit(k.a, txt) : false;
+      if (!tight) return (e.away ? h && a : h) ? 3 : 0;
+      if (h && a) return 4;
+      if (h || a) return e.away ? 2 : 3;
+      return pg.s >= t - 60 * 60000 && pg.s <= t + 30 * 60000 && Ev.lgHit(e, txt) ? 1 : 0;
+    },
+    // um canal por programação: as versões FHD/HD/SD do mesmo canal usam a mesma programação
+    chKey: function (c) {
+      if (c.eid) return 'e:' + norm(c.eid);
+      return 'n:' + norm(c.name).replace(/\[.*?\]|\(.*?\)/g, ' ').replace(/\b(fhd|uhd|hd|sd|4k|h265|hevc|hdr|alt|backup|60fps|50fps)\b/g, ' ').replace(/[^a-z0-9]+/g, '');
     },
     // procura, de uma vez, o canal de todos os eventos do dia na programação dos canais de esporte
     scan: function () {
       if (Ev.scanning || !S.ch.length || !Ev.list.length) return;
-      var cr = epgCreds(), lv = S.groups.live && S.groups.live[0] ? S.groups.live[0].items : [], cand = [], i, j, c, e;
-      var list = Ev.list, sc = [];
+      var cr = epgCreds(), lv = allLive() ? allLive().items : [], i, j, c, e;
+      var list = Ev.list, sc = [], byKey = {}, cand = [];
       for (j = 0; j < list.length; j++) sc.push({});
       for (i = 0; i < lv.length; i++) {
         c = S.ch[lv[i]]; if (c.adult) continue;
@@ -1149,15 +1255,25 @@
           e = list[j]; var k = Ev.evKeys(e);
           if (e.away && Ev.hit(k.h, nm) && Ev.hit(k.a, nm)) sc[j][lv[i]] = 5;   // canal com o nome do jogo (evento / PPV)
         }
-        if (cand.length < 450 && Ev.SPORT_CH.test(norm(c.name + ' ' + c.group))) cand.push(lv[i]);
+        var txt = norm(c.name + ' ' + c.group);
+        if (!Ev.SPORT_CH.test(txt) || !streamId(c.url)) continue;
+        var key = Ev.chKey(c), g = byKey[key];
+        if (!g) { g = byKey[key] = { idx: [], pr: (Ev.SPORT_TOP.test(txt) ? 0 : 2) + (c.noepg ? 1 : 0), ord: cand.length }; cand.push(g); }
+        g.idx.push(lv[i]);
       }
+      cand.sort(function (x, y) { return (x.pr - y.pr) || (x.ord - y.ord); });
+      if (cand.length > 700) cand.length = 700;
       Ev.scanning = true; Ev.scanDone = 0; Ev.scanTotal = cr ? cand.length : 0;
       var q = cr ? cand.slice() : [], running = 0, finished = false;
       function apply() {
         for (var j2 = 0; j2 < list.length; j2++) {
-          var out = [], m = sc[j2];
-          for (var key in m) if (m[key] >= (list[j2].away ? 2 : 3)) out.push(+key);
+          var out = [], m = sc[j2], best = 0, key2;
+          for (key2 in m) if (m[key2] > best) best = m[key2];
+          var thr = best >= 2 ? (list[j2].away ? 2 : 3) : 1;
+          if (best > 0) for (key2 in m) if (m[key2] >= thr) out.push(+key2);
           out.sort(function (x1, x2) { return (m[x2] - m[x1]) || (S.ch[x1].num - S.ch[x2].num); });
+          list[j2].weak = best === 1;
+          if (best === 1 && out.length > 6) out.length = 6;
           list[j2].ch = out;
         }
         if (S.sec === 'events' && S.mode === 'main') renderAll();
@@ -1168,8 +1284,8 @@
       }
       if (!q.length) { done(); return; }
       function next() {
-        while (running < 8 && q.length) {
-          (function (idx) {
+        while (running < 10 && q.length) {
+          (function (grp) {
             running++;
             var x = new XMLHttpRequest(), fin = false;
             var end = function (progs) {
@@ -1177,13 +1293,13 @@
               if (progs) for (var j3 = 0; j3 < list.length; j3++) {
                 var best = 0;
                 for (var p2 = 0; p2 < progs.length; p2++) { var v = Ev.score(list[j3], progs[p2]); if (v > best) best = v; }
-                if (best > (sc[j3][idx] || 0)) sc[j3][idx] = best;
+                if (best) for (var gi = 0; gi < grp.idx.length; gi++) if (best > (sc[j3][grp.idx[gi]] || 0)) sc[j3][grp.idx[gi]] = best;
               }
               if (Ev.scanDone % 40 === 0) apply();
               if (Ev.scanDone >= Ev.scanTotal) done(); else next();
             };
-            x.open('GET', cr.base + '/player_api.php?username=' + encodeURIComponent(cr.u) + '&password=' + encodeURIComponent(cr.p) + '&action=get_short_epg&stream_id=' + streamId(S.ch[idx].url) + '&limit=20', true);
-            x.timeout = 10000;
+            x.open('GET', cr.base + '/player_api.php?username=' + encodeURIComponent(cr.u) + '&password=' + encodeURIComponent(cr.p) + '&action=get_short_epg&stream_id=' + streamId(S.ch[grp.idx[0]].url) + '&limit=40', true);
+            x.timeout = 12000;
             x.onreadystatechange = function () {
               if (x.readyState !== 4) return;
               var r = null, out = [];
@@ -1191,6 +1307,8 @@
               var arr = r && r.epg_listings ? r.epg_listings : [];
               for (var j4 = 0; j4 < arr.length; j4++) {
                 var it = arr[j4], st = parseInt(it.start_timestamp, 10) * 1000, en = parseInt(it.stop_timestamp, 10) * 1000;
+                if (!st) st = Date.parse(String(it.start).replace(' ', 'T'));
+                if (!en) en = Date.parse(String(it.end || it.stop).replace(' ', 'T'));
                 if (st && en) out.push({ t: b64(it.title), d: b64(it.description), s: st, e: en });
               }
               end(out);
@@ -1206,6 +1324,7 @@
       if (!e.ch || !e.ch.length) return '';
       var n = S.ch[e.ch[0]].name.replace(/\s*\b(FHD|UHD|HD|SD|4K|H265|HEVC|\[.*?\]|\(.*?\))\s*/gi, ' ');
       n = trim(n.replace(/\s+/g, ' '));
+      if (e.weak) n = '≈ ' + n;
       if (max && n.length > max) n = n.substring(0, max - 1) + '…';
       return n;
     },
@@ -1225,7 +1344,7 @@
       var c = S.ch[list[0]];
       Player.play(c);
       openFullLive();
-      toast('Passando em ' + c.name + (list.length > 1 ? ' · ▲▼ outros ' + (list.length - 1) + ' canais com o jogo' : ''), 6000);
+      toast((e.weak ? 'Provavelmente em ' : 'Passando em ') + c.name + (list.length > 1 ? ' · ▲▼ outros ' + (list.length - 1) + ' canais com o jogo' : ''), 6000);
     }
   };
 
@@ -1537,7 +1656,7 @@
     if (first) {
       S.sec = 'live'; S.navIdx = 1; S.ep = null; S.zone = 'items'; S.pos = newPos();
       $('search-in').value = '';
-      var last = load('nx_last', null), lv = S.groups.live[0].items;
+      var last = load('nx_last', null), lv = allLive().items; S.pos.live.c = allLiveIdx();
       if (!lv.length) S.zone = 'nav';
       for (var i = 0; last && i < lv.length; i++) if (S.ch[lv[i]].url === last) { if (!S.ch[lv[i]].adult) { S.pos.live.i = i; S.live = S.ch[lv[i]]; } break; }
     }
@@ -1547,7 +1666,8 @@
   function openFullLive() {
     if (!S.live) return;
     var kind = curKind(), items = curItems();
-    S.zap = kind === 'live' ? { items: items, sec: S.sec, c: curPos().c } : { items: S.groups.live[0].items, sec: 'live', c: 0 };
+    S.zap = kind === 'live' ? { items: items, sec: S.sec, c: curPos().c } : { items: allLive().items, sec: 'live', c: allLiveIdx() };
+    recLiveWatch();
     S.mode = 'full'; S.fullKind = 'live'; addClass(document.body, 'fullscreen');
     Player.applyRect(); showOSD();
   }
@@ -1623,7 +1743,7 @@
     playVodNow(c, 0);
   }
   function playVodNow(c, startMs) {
-    Player.play(c); showVodOSD();
+    Player.play(c); showVodOSD(); recVod(c);
     if (startMs > 0) Res.seekWhenReady(c, startMs);
     clearInterval(resSaveT); resSaveT = setInterval(function () { if (S.cur === c) Res.save(c); }, 10000);
     clearTimeout(seenT);
@@ -1959,12 +2079,12 @@
     var nb = $('numbox'); nb.innerHTML = numBuf; show(nb);
     clearTimeout(numT);
     numT = setTimeout(function () {
-      hide(nb); var n = parseInt(numBuf, 10), lv = S.groups.live[0].items; numBuf = '';
+      hide(nb); var n = parseInt(numBuf, 10), lv = allLive().items; numBuf = '';
       if (!(n >= 1 && n <= lv.length)) { toast('Canal ' + n + ' não existe'); return; }
       var c = S.ch[lv[n - 1]];
       var go = function () {
-        if (S.mode === 'full' && S.fullKind === 'live') { S.zap = { items: lv, sec: 'live', c: 0 }; Player.play(c); showOSD(); }
-        else if (S.mode === 'main') { S.sec = 'live'; S.navIdx = 1; S.ep = null; S.pos.live = { c: 0, i: n - 1 }; S.zone = 'items'; renderAll(); Player.play(c); }
+        if (S.mode === 'full' && S.fullKind === 'live') { S.zap = { items: lv, sec: 'live', c: allLiveIdx() }; Player.play(c); showOSD(); }
+        else if (S.mode === 'main') { S.sec = 'live'; S.navIdx = 1; S.ep = null; S.pos.live = { c: allLiveIdx(), i: n - 1 }; S.zone = 'items'; renderAll(); Player.play(c); }
       };
       if (c.adult && !S.unlocked) needPin(go); else go();
     }, 1600);
@@ -2015,7 +2135,7 @@
   function init() {
     if (ANDROID && !window.Hls) { var libs = ['js/hls.min.js', 'js/mpegts.js']; for (var li = 0; li < libs.length; li++) { var sc = document.createElement('script'); sc.src = libs[li]; document.body.appendChild(sc); } }
     fillIcons(); registerKeys(); Player.init();
-    S.favs = load('nx_favs', {}); S.watched = load('nx_watched', {}); S.pin = load('nx_pin', '0000'); S.order = load('nx_order', 'list'); S.engine = load('nx_engine', 'html5');
+    S.favs = load('nx_favs', {}); S.watched = load('nx_watched', {}); S.recent = load('nx_recent', {}); S.pin = load('nx_pin', '0000'); S.order = load('nx_order', 'list'); S.engine = load('nx_engine', 'html5');
     loadLists();
     if (load('nx_boot', 0) || load('nx_cache_try', 0)) { // o app foi fechado no meio do carregamento da última vez
       save('nx_nocache', true);
