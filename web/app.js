@@ -1234,7 +1234,7 @@
   function verNum(v) { var p = String(v || '0').split('.'), n = 0; for (var i = 0; i < 3; i++) n = n * 1000 + (parseInt(p[i], 10) || 0); return n; }
   var Upd = {
     busy: false,
-    url: function (f) { return UPD_BASE + f + (f.indexOf('?') < 0 ? '?' : '&') + 't=' + now(); },
+    url: function (f) { return (/^https?:/.test(f) ? f : UPD_BASE + f) + (f.indexOf('?') < 0 ? '?' : '&') + 't=' + now(); },
     check: function (manual, cb) {
       if (Upd.busy) return;
       if (UPD_BASE.indexOf('__') >= 0) { if (manual) toast('Endereço de atualização não configurado'); return; }
@@ -1249,7 +1249,7 @@
       });
     },
     install: function (j) {
-      var f = j.web.files || { js: 'web/app.js', css: 'web/style.css', html: 'web/body.html' }, got = {}, keys = ['js', 'css', 'html'], k = 0;
+      var f = j.web.abs || j.web.files || { js: 'web/app.js', css: 'web/style.css', html: 'web/body.html' }, got = {}, keys = ['js', 'css', 'html'], k = 0;
       Upd.busy = true;
       toast('Baixando a versão ' + j.web.ver + '...', 15000);
       (function next() {
