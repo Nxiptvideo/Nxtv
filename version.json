@@ -1,0 +1,15 @@
+{
+  "web": {
+    "ver": "5.0.0",
+    "files": {
+      "js": "web/app.js",
+      "css": "web/style.css",
+      "html": "web/body.html"
+    }
+  },
+  "roku": {
+    "ver": "1.1.0",
+    "zip": "roku/NxTvLib.zip"
+  },
+  "notes": "Aba Eventos do dia e botão Atualizar app"
+}

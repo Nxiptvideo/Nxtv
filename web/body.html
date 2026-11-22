@@ -1,0 +1,118 @@
+<object id="av-player" type="application/avplayer"></object>
+<video id="html-player" autoplay></video>
+<div id="pv-msg" class="hidden"></div>
+
+<!-- ===== SPLASH / CARREGANDO ===== -->
+<div id="splash" class="screen">
+  <div class="sp-box">
+    <div class="sp-logo"><svg class="mk" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="og" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb347"/><stop offset="0.55" stop-color="#ff7a00"/><stop offset="1" stop-color="#ee5500"/></linearGradient><linearGradient id="wg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#cddcff"/></linearGradient></defs><!-- haste do N --><path d="M17 24 Q17 19 22 19 L26 19 Q31 19 31 24 L31 76 Q31 81 26 81 L22 81 Q17 81 17 76 Z" fill="url(#wg)"/><!-- diagonal do N --><path d="M24.5 21 Q27 18.5 30 20.5 L62 63 L52 70 L22 30 Q20.5 26 24.5 21 Z" fill="url(#wg)"/><!-- play laranja = segunda haste --><path d="M55 26 L85 50 L55 74 Z" fill="url(#og)" stroke="url(#og)" stroke-width="9" stroke-linejoin="round"/></svg><span>Nx<b>Tv</b></span></div>
+    <div id="sp-spin" class="spin"></div>
+    <div id="sp-title">Iniciando...</div>
+    <div id="sp-sub"></div>
+    <div id="sp-bar"><div id="sp-fill"></div></div>
+    <div id="sp-btns" class="btns hidden">
+      <div id="sp-retry" class="btn inrow focusable">Tentar novamente</div>
+      <div id="sp-cfg" class="btn sec inrow focusable">Configurações</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TELA PRINCIPAL ===== -->
+<div id="main" class="screen hidden">
+  <div id="hole"></div>
+  <header>
+    <div class="brand"><svg class="mk" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="og3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb347"/><stop offset="0.55" stop-color="#ff7a00"/><stop offset="1" stop-color="#ee5500"/></linearGradient><linearGradient id="wg3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#cddcff"/></linearGradient></defs><!-- haste do N --><path d="M17 24 Q17 19 22 19 L26 19 Q31 19 31 24 L31 76 Q31 81 26 81 L22 81 Q17 81 17 76 Z" fill="url(#wg3)"/><!-- diagonal do N --><path d="M24.5 21 Q27 18.5 30 20.5 L62 63 L52 70 L22 30 Q20.5 26 24.5 21 Z" fill="url(#wg3)"/><!-- play laranja = segunda haste --><path d="M55 26 L85 50 L55 74 Z" fill="url(#og3)" stroke="url(#og3)" stroke-width="9" stroke-linejoin="round"/></svg><span>Nx<b>Tv</b></span></div>
+    <div id="search" class="hd-item"><span class="ic" data-ic="search"></span><input id="search-in" type="text" placeholder="Pesquisar canal, filme ou série..."></div>
+    <div id="clock"></div>
+    <div id="gear" class="hd-item"><span class="ic" data-ic="gear"></span>Configurações</div>
+  </header>
+  <div class="cols">
+    <nav id="nav" class="col"><ul id="nav-list"></ul></nav>
+    <section id="cats" class="col"><h2 id="cats-title">Categorias</h2><ul id="cat-list"></ul></section>
+    <section id="items" class="col"><h2 id="items-title"></h2><ul id="item-list"></ul><div id="item-count"></div></section>
+    <section id="side">
+      <div id="live-panel">
+        <div id="preview"><div id="preview-msg">Selecione um canal</div></div>
+        <div id="now" class="panel">
+          <div class="now-top">
+            <img id="now-logo" alt="">
+            <div class="now-txt"><div id="now-name">—</div><div id="now-meta"></div></div>
+          </div>
+          <div id="epg"></div>
+        </div>
+      </div>
+      <div id="info-panel" class="panel hidden">
+        <div id="info-poster-box"><img id="info-poster" alt=""></div>
+        <div id="info-name"></div>
+        <div id="info-meta"></div>
+      </div>
+      <div id="event-panel" class="panel hidden"></div>
+      <div id="hints" class="panel"></div>
+    </section>
+  </div>
+</div>
+
+<!-- ===== CONFIGURAÇÕES: MINHAS LISTAS ===== -->
+<div id="settings" class="screen hidden">
+  <div class="box">
+    <h1><span class="ic big" data-ic="gear"></span>Configurações · Minhas listas</h1>
+    <ul id="lists"></ul>
+    <div class="note">OK em uma lista para editar, usar ou excluir. Listas ficam salvas na TV para abrir mais rápido (atualizam a cada 12 h ou em "Atualizar lista").</div>
+  </div>
+</div>
+
+<!-- ===== EDITOR DE LISTA ===== -->
+<div id="editor" class="screen hidden">
+  <div class="box">
+    <h1 id="ed-title">Nova lista</h1>
+    <label>Nome da lista</label>
+    <input id="in-name" class="focusable" type="text" placeholder="Ex.: Minha lista">
+    <div class="tabs">
+      <div class="tab inrow focusable" data-tab="m3u">Link M3U</div>
+      <div class="tab inrow focusable" data-tab="xtream">Xtream Codes</div>
+    </div>
+    <div id="pane-m3u">
+      <label>Link da lista (http://...)</label>
+      <input id="in-url" class="focusable" type="text" placeholder="http://servidor.com/lista.m3u">
+    </div>
+    <div id="pane-xtream" class="hidden">
+      <label>Servidor (http://dominio:porta)</label>
+      <input id="in-server" class="focusable" type="text" placeholder="http://servidor.com:8080">
+      <div class="two">
+        <div><label>Usuário</label><input id="in-user" class="focusable" type="text"></div>
+        <div><label>Senha</label><input id="in-pass" class="focusable" type="text"></div>
+      </div>
+    </div>
+    <div class="btns">
+      <div id="btn-save" class="btn inrow focusable">Salvar e carregar</div>
+      <div id="btn-del" class="btn danger inrow focusable">Excluir lista</div>
+      <div id="btn-back" class="btn sec inrow focusable">Voltar</div>
+    </div>
+    <div id="ed-msg"></div>
+  </div>
+</div>
+
+<!-- ===== OVERLAYS ===== -->
+<div id="osd" class="hidden">
+  <div id="osd-num"></div>
+  <img id="osd-logo" alt="">
+  <div class="osd-txt"><div id="osd-name"></div><div id="osd-group"></div><div id="osd-epg"></div></div>
+</div>
+<div id="vod-osd" class="hidden">
+  <div id="vod-title"></div>
+  <div id="vod-bar"><div id="vod-fill"></div></div>
+  <div class="vod-row"><span id="vod-time">0:00 / 0:00</span><span id="vod-state"></span><span class="vod-help">OK pausar · ◀ -10s · ▶ +30s · CH± episódio · VOLTAR sair</span></div>
+</div>
+<div id="pin" class="hidden">
+  <div class="pin-box">
+    <div class="pin-ic" data-ic="lock"></div>
+    <h2 id="pin-title">Conteúdo adulto</h2>
+    <p id="pin-sub">Digite a senha</p>
+    <div id="pin-dots"><span></span><span></span><span></span><span></span></div>
+    <div id="pin-msg"></div>
+    <div class="pin-back">VOLTAR para cancelar</div>
+  </div>
+</div>
+<div id="fs-load" class="hidden"><div class="spin"></div></div>
+<div id="numbox" class="hidden"></div>
+<div id="toast" class="hidden"></div>
