@@ -9,7 +9,7 @@
     PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, FF: 417, RW: 412, DONE: 65376, CANCEL: 65385, PGUP: 33, PGDN: 34, MENU: 1082 };
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid || /android=1/.test(location.search);
-  var APP_VER = '5.0.4';
+  var APP_VER = '5.0.5';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   function bridge(fn) { try { if (window.NxAndroid && NxAndroid[fn]) NxAndroid[fn](); } catch (e) {} }
   function focusIn(el) { el.focus(); if (ANDROID) bridge('showKeyboard'); }
@@ -909,6 +909,14 @@
       if (this.cur === 'av') { try { if (ms > 0) this.av.jumpForward(ms); else this.av.jumpBackward(-ms); } catch (e) {} }
       else { try { this.vid.currentTime = Math.max(0, this.vid.currentTime + ms / 1000); } catch (e) {} }
     },
+    seekAbs: function (ms) {
+      if (this.cur === 'av') { try { this.av.seekTo(ms); } catch (e) {} }
+      else { try { this.vid.currentTime = ms / 1000; } catch (e) {} }
+    },
+    isPlaying: function () {
+      if (this.cur === 'av') { try { return this.av.getState() === 'PLAYING'; } catch (e) { return false; } }
+      return !!this.vid && !this.vid.paused && this.vid.readyState >= 2;
+    },
     times: function () {
       if (this.cur === 'av') { try { return [this.av.getCurrentTime(), this.av.getDuration()]; } catch (e) { return [0, 0]; } }
       return [(this.vid.currentTime || 0) * 1000, (this.vid.duration || 0) * 1000];
@@ -1544,9 +1552,80 @@
     Player.applyRect(); showOSD();
   }
 
-  var seenT;
+
+  /* ================= continuar de onde parou (filmes e episódios) ================= */
+  var Res = {
+    map: null,
+    key: function (c) { return c.type === 'series' ? wKey(c) : 'm:' + norm(c.name); },
+    all: function () { if (!Res.map) Res.map = load('nx_resume', {}) || {}; return Res.map; },
+    get: function (c) { var r = c ? Res.all()[Res.key(c)] : null; return r && r.t > 30000 ? r : null; },
+    save: function (c) {
+      if (!c || S.fullKind !== 'vod' || !Player.active) return;
+      var t = Player.times(), m = Res.all(), k = Res.key(c);
+      if (!(t[1] > 0) || !(t[0] >= 0)) return;
+      if (t[0] < 30000 || t[0] > t[1] * 0.95) { if (m[k]) { delete m[k]; save('nx_resume', m); } return; }
+      m[k] = { t: Math.floor(t[0]), d: Math.floor(t[1]), at: now() };
+      // guarda só os 150 mais recentes
+      var ks = []; for (var x in m) ks.push(x);
+      if (ks.length > 150) { ks.sort(function (a, b) { return m[a].at - m[b].at; }); for (var i = 0; i < ks.length - 150; i++) delete m[ks[i]]; }
+      save('nx_resume', m);
+    },
+    done: function (c) { var m = Res.all(), k = c ? Res.key(c) : ''; if (m[k]) { delete m[k]; save('nx_resume', m); } },
+    // depois que o vídeo começa, pula para o ponto salvo
+    seekWhenReady: function (c, ms) {
+      var tries = 0;
+      clearInterval(Res.seekT);
+      Res.seekT = setInterval(function () {
+        tries++;
+        if (S.cur !== c || S.fullKind !== 'vod' || tries > 60) { clearInterval(Res.seekT); return; }
+        var t = Player.times();
+        if (t[1] > 0 && Player.isPlaying()) {
+          clearInterval(Res.seekT);
+          Player.seekAbs(ms);
+          toast('Continuando de ' + fmtTime(ms), 3000);
+        }
+      }, 500);
+    }
+  };
+  // caixa de pergunta (Continuar / Começar do início)
+  var Ask = {
+    open: false, sel: 0, cb: null,
+    show: function (title, sub, btns, cb) {
+      Ask.open = true; Ask.sel = 0; Ask.cb = cb;
+      $('ask-title').innerHTML = esc(title); $('ask-sub').innerHTML = esc(sub);
+      var h = ''; for (var i = 0; i < btns.length; i++) h += '<div class="ask-btn' + (i === 0 ? ' sel' : '') + '">' + esc(btns[i]) + '</div>';
+      $('ask-btns').innerHTML = h; show($('ask'));
+    },
+    close: function (r) { Ask.open = false; hide($('ask')); var cb = Ask.cb; Ask.cb = null; if (cb) cb(r); },
+    key: function (k) {
+      var b = $('ask-btns').children;
+      if (k === K.LEFT || k === K.UP) Ask.sel = Math.max(0, Ask.sel - 1);
+      else if (k === K.RIGHT || k === K.DOWN) Ask.sel = Math.min(b.length - 1, Ask.sel + 1);
+      else if (k === K.ENTER) { Ask.close(Ask.sel); return; }
+      else if (k === K.BACK || k === K.ESC) { Ask.close(-1); return; }
+      for (var i = 0; i < b.length; i++) setClass(b[i], 'sel', i === Ask.sel);
+    }
+  };
+
+  var seenT, resSaveT;
   function startVodItem(c) {
+    var r = Res.get(c);
+    if (r) {
+      S.cur = c; Player.stop();
+      var nm = c.type === 'series' && S.series[c.sid] ? S.series[c.sid].name + ' · ' + (c.se ? 'T' + c.se + ' ' : '') + epLabel(c, 0) : c.name;
+      Ask.show(nm, 'Você parou em ' + fmtTime(r.t) + (r.d ? ' de ' + fmtTime(r.d) : ''), ['Continuar de ' + fmtTime(r.t), 'Começar do início'], function (b) {
+        if (b < 0) { closeFull(); return; }
+        if (b === 1) Res.done(c);
+        playVodNow(c, b === 0 ? r.t : 0);
+      });
+      return;
+    }
+    playVodNow(c, 0);
+  }
+  function playVodNow(c, startMs) {
     Player.play(c); showVodOSD();
+    if (startMs > 0) Res.seekWhenReady(c, startMs);
+    clearInterval(resSaveT); resSaveT = setInterval(function () { if (S.cur === c) Res.save(c); }, 10000);
     clearTimeout(seenT);
     if (c.type === 'series') seenT = setTimeout(function () { if (S.cur === c && S.mode === 'full') markSeen(c); }, 60000);
   }
@@ -1557,6 +1636,7 @@
     startVodItem(S.ch[list[pos]]);
   }
   function vodEnded() {
+    Res.done(S.cur); clearInterval(resSaveT);
     markSeen(S.cur);
     if (S.vod && S.vod.pos < S.vod.list.length - 1 && S.cur && S.cur.type === 'series') { vodJump(1); return; }
     closeFull();
@@ -1565,6 +1645,7 @@
     var v = S.vod; if (!v) return;
     var np = v.pos + d;
     if (np < 0 || np >= v.list.length) { toast(d > 0 ? 'Último episódio' : 'Primeiro episódio'); return; }
+    Res.save(S.cur);
     v.pos = np;
     var c = S.ch[v.list[np]];
     if (S.ep && c.type === 'series') {
@@ -1575,6 +1656,7 @@
   }
   function closeFull() {
     var wasVod = S.fullKind === 'vod';
+    if (wasVod) { Res.save(S.cur); clearInterval(resSaveT); clearInterval(Res.seekT); }
     hide($('osd')); hide($('vod-osd')); clearInterval(vodT); clearTimeout(seenT);
     S.fullKind = null;
     if (wasVod) { Player.stop(); S.cur = S.live; }
@@ -1891,6 +1973,7 @@
   /* ================= teclado global ================= */
   function onKey(e) {
     var k = e.keyCode, ae = document.activeElement, inInput = ae && ae.tagName === 'INPUT';
+    if (Ask.open) { e.preventDefault(); Ask.key(k); return; }
     if (S.mode === 'pin') { pinKey(k, e); return; }
     if (S.mode === 'splash') {
       if (hasClass($('sp-btns'), 'hidden')) { if (k === K.BACK || k === K.ESC) exitApp(); e.preventDefault(); return; }
@@ -1941,7 +2024,8 @@
     window.onerror = function (msg) { try { toast('Erro: ' + msg, 6000); } catch (e) {} };
     document.addEventListener('keydown', onKey);
     window.nxKey = function (k) { onKey({ keyCode: k, preventDefault: function () {} }); };
-    window.nxPause = function () { try { if (S.mode === 'full') closeFull(); Player.stop(); } catch (e) {} };
+    window.nxPause = function () { try { if (S.fullKind === 'vod') Res.save(S.cur); if (S.mode === 'full') closeFull(); Player.stop(); } catch (e) {} };
+    document.addEventListener('visibilitychange', function () { if (document.hidden && S.fullKind === 'vod') Res.save(S.cur); });
     clock(); setInterval(clock, 20000);
     $('search-in').addEventListener('input', function () {
       var v = this.value; clearTimeout(searchT);

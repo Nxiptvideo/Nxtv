@@ -216,3 +216,13 @@ label{display:block;font-size:26px;color:#8ea3cc;margin:18px 0 10px}
 #item-list li .t.two .tl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #item-list li .t.two .ts{font-size:21px;color:#ffa23d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
 #items.active #item-list li.sel .t.two .ts{color:#fff}
+
+/* ===== continuar de onde parou ===== */
+#ask{position:fixed;left:0;top:0;width:1920px;height:1080px;background:rgba(4,10,28,.82);z-index:60;display:flex;align-items:center;justify-content:center}
+#ask.hidden{display:none}
+.ask-box{width:1000px;background:#0d1f4a;border:4px solid #ff7a00;border-radius:28px;padding:50px 60px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.ask-box h2{font-size:40px;color:#fff;margin-bottom:14px;line-height:50px}
+.ask-box p{font-size:30px;color:#b9c7e6;margin-bottom:36px}
+#ask-btns{display:flex;flex-direction:column;gap:18px;align-items:center}
+.ask-btn{width:620px;padding:22px 0;border-radius:16px;background:#1a3166;color:#d6e0f5;font-size:32px;font-weight:bold;border:3px solid transparent}
+.ask-btn.sel{background:#ff7a00;color:#fff;border-color:#ffc58a}
