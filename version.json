@@ -1,6 +1,6 @@
 {
   "web": {
-    "ver": "5.0.1",
+    "ver": "5.0.2",
     "files": {
       "js": "web/app.js",
       "css": "web/style.css",
@@ -8,8 +8,8 @@
     }
   },
   "roku": {
-    "ver": "1.1.0",
+    "ver": "1.1.1",
     "zip": "roku/NxTvLib.zip"
   },
-  "notes": "Aba Eventos do dia, botão Atualizar app e correção do Carregando em tela cheia"
+  "notes": "OK no evento abre o canal que está passando o jogo"
 }
