@@ -9,7 +9,7 @@
     PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, FF: 417, RW: 412, DONE: 65376, CANCEL: 65385, PGUP: 33, PGDN: 34, MENU: 1082 };
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid || /android=1/.test(location.search);
-  var APP_VER = '5.0.2';
+  var APP_VER = '5.0.3';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   function bridge(fn) { try { if (window.NxAndroid && NxAndroid[fn]) NxAndroid[fn](); } catch (e) {} }
   function focusIn(el) { el.focus(); if (ANDROID) bridge('showKeyboard'); }
@@ -1584,12 +1584,12 @@
     }
     h += '<li class="focusable mut" data-a="add">+ Adicionar nova lista</li>';
     if (S.lists.length) h += '<li class="focusable mut" data-a="reload">Atualizar lista em uso (baixar de novo)</li>';
+    h += '<li class="focusable mut" data-a="appupd"><span class="nm">Atualizar app (procurar versão nova)</span><span class="lt">VERSÃO ' + APP_VER + '</span></li>';
     h += '<li class="focusable mut" data-a="pin"><span class="nm">Senha do conteúdo adulto · alterar</span><span class="lt">' + (S.pin === '0000' ? 'padrão 0000' : '••••') + '</span></li>';
     if (!ANDROID) h += '<li class="focusable mut" data-a="engine"><span class="nm">Player de vídeo</span><span class="lt">' + (S.engine === 'avplay' ? 'SAMSUNG (AVPlay)' : 'PADRÃO (HTML5)') + '</span></li>';
     h += '<li class="focusable mut" data-a="order"><span class="nm">Ordem de canais, filmes e séries</span><span class="lt">' + (S.order === 'az' ? 'ALFABÉTICA' : 'IGUAL À LISTA') + '</span></li>';
     h += '<li class="focusable mut" data-a="cache"><span class="nm">Abertura rápida (lista salva na TV)</span><span class="lt">' + (cacheOn() ? 'LIGADA' : 'DESLIGADA') + '</span></li>';
     if (S.unlocked) h += '<li class="focusable mut" data-a="lock">Bloquear conteúdo adulto agora</li>';
-    h += '<li class="focusable mut" data-a="appupd"><span class="nm">Atualizar app (procurar versão nova)</span><span class="lt">VERSÃO ' + APP_VER + '</span></li>';
     if (window.NX_UPD) h += '<li class="focusable mut" data-a="appreset"><span class="nm">Voltar para a versão original do app</span><span class="lt">' + (window.NX_FACTORY || '') + '</span></li>';
     if (S.ch.length) h += '<li class="focusable mut" data-a="back">Voltar para a TV</li>';
     $('lists').innerHTML = h;
