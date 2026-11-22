@@ -208,3 +208,11 @@ label{display:block;font-size:26px;color:#8ea3cc;margin:18px 0 10px}
 .ev-big img{width:200px;height:200px;object-fit:contain;margin:10px 0 20px}
 .ev-title{font-size:30px;font-weight:bold;line-height:38px;margin-bottom:14px}
 .ev-info{font-size:25px;color:#b9c7e6;line-height:38px}
+#item-list li .evc{flex-shrink:0;margin-left:12px;font-size:22px;color:#ffa23d;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#items.active #item-list li.sel .evc{color:#fff}
+.ev-where{margin-top:18px;font-size:26px;line-height:36px;color:#ffa23d;padding:0 10px}
+.ev-where b{color:#fff}
+#item-list li .t.two{display:flex;flex-direction:column;justify-content:center;line-height:1.05}
+#item-list li .t.two .tl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#item-list li .t.two .ts{font-size:21px;color:#ffa23d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
+#items.active #item-list li.sel .t.two .ts{color:#fff}

@@ -9,7 +9,7 @@
     PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, FF: 417, RW: 412, DONE: 65376, CANCEL: 65385, PGUP: 33, PGDN: 34, MENU: 1082 };
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid || /android=1/.test(location.search);
-  var APP_VER = '5.0.3';
+  var APP_VER = '5.0.4';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   function bridge(fn) { try { if (window.NxAndroid && NxAndroid[fn]) NxAndroid[fn](); } catch (e) {} }
   function focusIn(el) { el.focus(); if (ANDROID) bridge('showKeyboard'); }
@@ -987,7 +987,12 @@
       function finish() {
         Ev.loading = false; Ev.day = today; Ev.at = now(); Ev.err = ok === 0;
         res.sort(function (a, b) { return a.t - b.t || a.ord - b.ord; });
+        var keep = {};
+        for (var o = 0; o < Ev.list.length; o++) if (Ev.list[o].ch) keep[Ev.list[o].league + Ev.list[o].t + (Ev.list[o].home || Ev.list[o].title)] = Ev.list[o].ch;
+        for (var r = 0; r < res.length; r++) { var kk = res[r].league + res[r].t + (res[r].home || res[r].title); if (keep[kk]) res[r].ch = keep[kk]; }
+        var fresh = Ev.scanAt && now() - Ev.scanAt < 30 * 60000 && Ev.scanned && Ev.scanned.length === res.length;
         Ev.list = res; Ev.build();
+        if (!fresh) { Ev.scanning = false; Ev.scan(); } else Ev.scanned = res;
         clearTimeout(Ev.timer);
         // com jogo ao vivo o placar se atualiza a cada 2 minutos enquanto a aba está aberta
         var live = false; for (var i = 0; i < res.length; i++) if (res[i].state === 'in') live = true;
@@ -1063,6 +1068,8 @@
       var h = '<span class="evt">' + Ev.hm(e.t) + '</span>';
       if (e.home && e.away) h += '<img class="cr" src="' + esc(Ev.small(e.hlogo, 80)) + '" onerror="this.style.visibility=\'hidden\'"><span class="t">' + esc(e.home) + ' <b class="vs">x</b> ' + esc(e.away) + '</span><img class="cr" src="' + esc(Ev.small(e.alogo, 80)) + '" onerror="this.style.visibility=\'hidden\'">';
       else h += '<img class="cr" src="' + esc(Ev.small(e.llogo, 80)) + '" onerror="this.style.visibility=\'hidden\'"><span class="t">' + esc(e.title + (e.sub ? ' · ' + e.sub : '')) + '</span>';
+      var cn = Ev.chName(e, 34);
+      if (cn) h = h.replace('<span class="t">', '<span class="t two"><span class="tl">').replace(/<\/span>(<img class="cr"[^>]*>)?$/, function (m0, img) { return '</span><span class="ts">' + esc(cn) + '</span></span>' + (img || ''); });
       return h + Ev.status(e);
     },
     side: function (i) {
@@ -1079,6 +1086,14 @@
       }
       var st = e.state === 'in' ? '<span class="evs live">AO VIVO · ' + esc(e.detail) + '</span>' : e.state === 'post' ? 'Encerrado' : 'Começa às ' + Ev.hm(e.t);
       h += '<div class="ev-info">' + st + (e.sub ? '<br>' + esc(e.sub) : '') + (e.venue ? '<br>' + esc(e.venue) : '') + '</div>';
+      var where;
+      if (e.ch && e.ch.length) {
+        var nms = []; for (var w = 0; w < Math.min(3, e.ch.length); w++) nms.push(S.ch[e.ch[w]].name);
+        where = '<b>Onde passa:</b> ' + esc(nms.join(' · ')) + (e.ch.length > 3 ? ' e mais ' + (e.ch.length - 3) : '');
+      } else if (!S.ch.length) where = 'Carregue uma lista para ver os canais';
+      else if (Ev.scanning) where = 'Procurando o canal na programação... ' + Ev.scanDone + ' de ' + Ev.scanTotal;
+      else where = 'Canal não encontrado na programação';
+      h += '<div class="ev-where">' + where + '</div>';
       $('event-panel').innerHTML = h;
     },
     // procura o jogo na programação dos canais de esporte da lista (Xtream) e devolve os canais, do melhor para o pior
@@ -1101,51 +1116,73 @@
       for (i = 0; i < k.tk.length; i++) if ((' ' + txt + ' ').indexOf(' ' + k.tk[i] + ' ') >= 0) return true;
       return false;
     },
-    find: function (e, cb) {
-      var lv = S.groups.live && S.groups.live[0] ? S.groups.live[0].items : [], cand = [], scores = {}, i, c;
-      var kh = Ev.keys(e.home ? [e.home, e.hfull] : [e.title]), ka = Ev.keys(e.away ? [e.away, e.afull] : []);
-      var clean = function (t) { return ' ' + trim(norm(t).replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ')) + ' '; };
+    clean: function (t) { return ' ' + trim(norm(t).replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ')) + ' '; },
+    evKeys: function (e) {
+      if (!e._k) e._k = { h: Ev.keys(e.home ? [e.home, e.hfull] : [e.title]), a: Ev.keys(e.away ? [e.away, e.afull] : []) };
+      return e._k;
+    },
+    // nota do programa para o evento: 4 = os dois times, 2/3 = um time ou o nome do evento
+    score: function (e, pg) {
+      if (!(pg.s <= e.t + 45 * 60000 && pg.e >= e.t + 10 * 60000)) return 0;
+      var k = Ev.evKeys(e), txt = Ev.clean(pg.t + ' ' + (pg.d || ''));
+      var h = Ev.hit(k.h, txt), a = e.away ? Ev.hit(k.a, txt) : false;
+      return h && a ? 4 : (h || a) ? (e.away ? 2 : 3) : 0;
+    },
+    // procura, de uma vez, o canal de todos os eventos do dia na programação dos canais de esporte
+    scan: function () {
+      if (Ev.scanning || !S.ch.length || !Ev.list.length) return;
+      var cr = epgCreds(), lv = S.groups.live && S.groups.live[0] ? S.groups.live[0].items : [], cand = [], i, j, c, e;
+      var list = Ev.list, sc = [];
+      for (j = 0; j < list.length; j++) sc.push({});
       for (i = 0; i < lv.length; i++) {
-        c = S.ch[lv[i]]; if (c.adult && !S.unlocked) continue;
-        var nm = clean(c.name);
-        // canal com o nome do jogo (canais de evento / PPV)
-        if (e.away && Ev.hit(kh, nm) && Ev.hit(ka, nm)) { scores[lv[i]] = 5; continue; }
+        c = S.ch[lv[i]]; if (c.adult) continue;
+        var nm = Ev.clean(c.name);
+        for (j = 0; j < list.length; j++) {
+          e = list[j]; var k = Ev.evKeys(e);
+          if (e.away && Ev.hit(k.h, nm) && Ev.hit(k.a, nm)) sc[j][lv[i]] = 5;   // canal com o nome do jogo (evento / PPV)
+        }
         if (cand.length < 450 && Ev.SPORT_CH.test(norm(c.name + ' ' + c.group))) cand.push(lv[i]);
       }
-      var cr = epgCreds(), q = cand.slice(), running = 0, done = 0, total = q.length, t0 = e.t;
-      if (!cr || !total) { finish(); return; }
-      toast('Procurando o jogo na programação de ' + total + ' canais...', 30000);
-      function check(idx, list) {
-        if (!list) return;
-        for (var k = 0; k < list.length; k++) {
-          var pg = list[k];
-          if (!(pg.s <= t0 + 45 * 60000 && pg.e >= t0 + 10 * 60000)) continue;
-          var txt = clean(pg.t + ' ' + (pg.d || ''));
-          var h = Ev.hit(kh, txt), a = e.away ? Ev.hit(ka, txt) : false;
-          var sc = h && a ? 4 : (h || a) ? (e.away ? 2 : 3) : 0;
-          if (sc > (scores[idx] || 0)) scores[idx] = sc;
+      Ev.scanning = true; Ev.scanDone = 0; Ev.scanTotal = cr ? cand.length : 0;
+      var q = cr ? cand.slice() : [], running = 0, finished = false;
+      function apply() {
+        for (var j2 = 0; j2 < list.length; j2++) {
+          var out = [], m = sc[j2];
+          for (var key in m) if (m[key] >= (list[j2].away ? 2 : 3)) out.push(+key);
+          out.sort(function (x1, x2) { return (m[x2] - m[x1]) || (S.ch[x1].num - S.ch[x2].num); });
+          list[j2].ch = out;
         }
+        if (S.sec === 'events' && S.mode === 'main') renderAll();
       }
+      function done() {
+        if (finished) return; finished = true;
+        Ev.scanning = false; Ev.scanAt = now(); Ev.scanned = list; apply();
+      }
+      if (!q.length) { done(); return; }
       function next() {
         while (running < 8 && q.length) {
           (function (idx) {
             running++;
-            var id = streamId(S.ch[idx].url);
             var x = new XMLHttpRequest(), fin = false;
-            var end = function (list) {
-              if (fin) return; fin = true; running--; done++; check(idx, list);
-              if (done % 20 === 0) toast('Procurando o jogo... ' + done + ' de ' + total + ' canais', 30000);
-              if (done === total) finish(); else next();
+            var end = function (progs) {
+              if (fin) return; fin = true; running--; Ev.scanDone++;
+              if (progs) for (var j3 = 0; j3 < list.length; j3++) {
+                var best = 0;
+                for (var p2 = 0; p2 < progs.length; p2++) { var v = Ev.score(list[j3], progs[p2]); if (v > best) best = v; }
+                if (best > (sc[j3][idx] || 0)) sc[j3][idx] = best;
+              }
+              if (Ev.scanDone % 40 === 0) apply();
+              if (Ev.scanDone >= Ev.scanTotal) done(); else next();
             };
-            x.open('GET', cr.base + '/player_api.php?username=' + encodeURIComponent(cr.u) + '&password=' + encodeURIComponent(cr.p) + '&action=get_short_epg&stream_id=' + id + '&limit=12', true);
-            x.timeout = 8000;
+            x.open('GET', cr.base + '/player_api.php?username=' + encodeURIComponent(cr.u) + '&password=' + encodeURIComponent(cr.p) + '&action=get_short_epg&stream_id=' + streamId(S.ch[idx].url) + '&limit=20', true);
+            x.timeout = 10000;
             x.onreadystatechange = function () {
               if (x.readyState !== 4) return;
               var r = null, out = [];
               try { r = JSON.parse(x.responseText); } catch (er) {}
               var arr = r && r.epg_listings ? r.epg_listings : [];
-              for (var j = 0; j < arr.length; j++) {
-                var it = arr[j], st = parseInt(it.start_timestamp, 10) * 1000, en = parseInt(it.stop_timestamp, 10) * 1000;
+              for (var j4 = 0; j4 < arr.length; j4++) {
+                var it = arr[j4], st = parseInt(it.start_timestamp, 10) * 1000, en = parseInt(it.stop_timestamp, 10) * 1000;
                 if (st && en) out.push({ t: b64(it.title), d: b64(it.description), s: st, e: en });
               }
               end(out);
@@ -1155,36 +1192,32 @@
           })(q.shift());
         }
       }
-      function finish() {
-        var out = [];
-        for (var k in scores) if (scores[k] >= (e.away ? 2 : 3)) out.push(+k);
-        out.sort(function (x1, x2) { return (scores[x2] - scores[x1]) || (S.ch[x1].num - S.ch[x2].num); });
-        cb(out, scores);
-      }
       next();
+    },
+    chName: function (e, max) {
+      if (!e.ch || !e.ch.length) return '';
+      var n = S.ch[e.ch[0]].name.replace(/\s*\b(FHD|UHD|HD|SD|4K|H265|HEVC|\[.*?\]|\(.*?\))\s*/gi, ' ');
+      n = trim(n.replace(/\s+/g, ' '));
+      if (max && n.length > max) n = n.substring(0, max - 1) + '…';
+      return n;
     },
     open: function (i) {
       var e = i === null || i === undefined ? null : Ev.list[i]; if (!e) return;
       if (!S.ch.length) { toast('Carregue uma lista para procurar os canais'); return; }
-      if (Ev.busy) return;
-      Ev.busy = true;
-      Ev.find(e, function (list, scores) {
-        Ev.busy = false;
-        if (S.sec !== 'events' || S.mode !== 'main') return;
-        var nameQ = e.q || e.home || '';
-        if (!list.length) {
-          toast('Não achei o jogo na programação. Mostrando canais com "' + nameQ + '".', 5000);
-          S.zone = 'items'; doSearch(nameQ); return;
-        }
-        var title = e.home && e.away ? e.home + ' x ' + e.away : e.title;
-        S.query = ''; S.groups.search = [{ name: 'Onde passa: ' + title, kind: 'live', items: list }];
-        S.sec = 'search'; S.navIdx = 0; S.ep = null; S.pos.search = { c: 0, i: 0 }; S.zone = 'items';
-        renderAll();
-        var c = S.ch[list[0]];
-        Player.play(c);
-        openFullLive();
-        toast('Passando em ' + c.name + (list.length > 1 ? ' · ▲▼ outros ' + (list.length - 1) + ' canais com o jogo' : ''), 6000);
-      });
+      if (e.ch === undefined && Ev.scanning) { toast('Ainda procurando os canais dos jogos... ' + Ev.scanDone + ' de ' + Ev.scanTotal, 4000); return; }
+      var nameQ = e.q || e.home || '';
+      if (!e.ch || !e.ch.length) {
+        toast('Não achei o jogo na programação. Mostrando canais com "' + nameQ + '".', 5000);
+        S.zone = 'items'; doSearch(nameQ); return;
+      }
+      var list = e.ch.slice(), title = e.home && e.away ? e.home + ' x ' + e.away : e.title;
+      S.query = ''; S.groups.search = [{ name: 'Onde passa: ' + title, kind: 'live', items: list }];
+      S.sec = 'search'; S.navIdx = 0; S.ep = null; S.pos.search = { c: 0, i: 0 }; S.zone = 'items';
+      renderAll();
+      var c = S.ch[list[0]];
+      Player.play(c);
+      openFullLive();
+      toast('Passando em ' + c.name + (list.length > 1 ? ' · ▲▼ outros ' + (list.length - 1) + ' canais com o jogo' : ''), 6000);
     }
   };
 

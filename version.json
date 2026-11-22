@@ -1,6 +1,6 @@
 {
   "web": {
-    "ver": "5.0.3",
+    "ver": "5.0.4",
     "files": {
       "js": "web/app.js",
       "css": "web/style.css",
@@ -8,8 +8,8 @@
     }
   },
   "roku": {
-    "ver": "1.1.1",
+    "ver": "1.1.2",
     "zip": "roku/NxTvLib.zip"
   },
-  "notes": "Botão Atualizar app mais em cima nas Configurações"
+  "notes": "Eventos mostram o canal que vai passar cada jogo"
 }
