@@ -1,6 +1,6 @@
 {
   "web": {
-    "ver": "5.0.7",
+    "ver": "5.0.8",
     "files": {
       "js": "web/app.js",
       "css": "web/style.css",
