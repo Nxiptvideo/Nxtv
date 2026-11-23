@@ -9,7 +9,7 @@
     PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, FF: 417, RW: 412, DONE: 65376, CANCEL: 65385, PGUP: 33, PGDN: 34, MENU: 1082 };
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid || /android=1/.test(location.search);
-  var APP_VER = '5.0.7';
+  var APP_VER = '5.0.8';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   function bridge(fn) { try { if (window.NxAndroid && NxAndroid[fn]) NxAndroid[fn](); } catch (e) {} }
   function focusIn(el) { el.focus(); if (ANDROID) bridge('showKeyboard'); }
@@ -2132,6 +2132,9 @@
   function init() {
     if (ANDROID && !window.Hls) { var libs = ['js/hls.min.js', 'js/mpegts.js']; for (var li = 0; li < libs.length; li++) { var sc = document.createElement('script'); sc.src = libs[li]; document.body.appendChild(sc); } }
     fillIcons(); registerKeys(); Player.init();
+    var stFix = document.createElement('style');
+    stFix.innerHTML = '#nav{width:230px!important}#cats{width:320px!important}#items{width:890px!important}#side{flex:0 0 360px!important;width:360px!important;max-width:360px!important}#preview{height:202px!important}#hole{left:1530px!important;width:360px!important;height:202px!important}#now-logo{width:72px!important;height:48px!important}#now-name{font-size:24px!important}#now-meta{font-size:19px!important}#hints{font-size:18px!important;line-height:34px!important;padding:12px 16px!important}#info-poster-box,#info-poster{height:380px!important;max-height:380px!important}';
+    document.head.appendChild(stFix);
     S.favs = load('nx_favs', {}); S.watched = load('nx_watched', {}); S.recent = load('nx_recent', {}); S.pin = load('nx_pin', '0000'); S.order = load('nx_order', 'list'); S.engine = load('nx_engine', 'html5');
     loadLists();
     if (load('nx_boot', 0) || load('nx_cache_try', 0)) {
