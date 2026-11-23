@@ -1184,7 +1184,7 @@
       $('event-panel').innerHTML = h;
     },
     SPORT_CH: /espor|sport|premiere|espn|combate|ufc|dazn|tnt|band|globo|caze|xsport|goat|prime|amazon|paramount|disney|star\+?|max|apple|nba|nfl|f1|formula|record|sbt|futebol|soccer|fight|luta|onefootball|canal ?gol|cbf|conmebol|libertadores|champions|premier|laliga|serie a|bundesliga|eleven|sky|fox|bein|nosso futebol|placar|jogo|ppv|evento|tyc|gol ?tv/,
-    SPORT_TOP: /espn|sportv|premiere|combate|tnt ?sport|dazn|caze|ufc|nba|nfl|band ?sport|xsport|goat|esporte|sports?|fight|ppv|evento|futebol|soccer|nosso futebol|placar|onefootball|canal ?gol|eleven|bein|tyc|gol ?tv|f1|formula|premier|libertadores|champions|disney|star\+|prime video|paramount|max|apple/,
+    SPORT_TOP: /espn|sportv|premiere|combate|tnt ?sport|dazn|caze|ufc|nba|nfl|band ?sport|xsport|goat|esporte|sports?|fight|ppv|evento|futebol|soccer|nosso futebol|placar|onefootball|canal ?gol|eleven|bein|tyc|gol ?tv|f1|formula|premier|libertadores|champions|disney|star\+|prime video|paramount|max|apple/,
     STOP: { fc: 1, sc: 1, ec: 1, cf: 1, ac: 1, as: 1, ca: 1, cr: 1, se: 1, de: 1, da: 1, do: 1, das: 1, dos: 1, the: 1, club: 1, clube: 1, united: 1, city: 1, real: 1, sporting: 1, atletico: 1, athletic: 1, sport: 1, esporte: 1, futebol: 1, san: 1, santa: 1, saint: 1, deportivo: 1, olympique: 1, new: 1, york: 1, los: 1, angeles: 1, las: 1, vegas: 1, grand: 1, prix: 1, night: 1, fight: 1 },
     ALIAS: { 'paris saint germain': ['psg'], 'psg': ['paris saint germain'], 'manchester united': ['man united', 'manchester utd', 'man utd'], 'manchester city': ['man city'],
       'atletico mg': ['atletico mineiro', 'galo'], 'atletico mineiro': ['atletico mg'], 'athletico pr': ['athletico paranaense', 'athletico'], 'athletico paranaense': ['athletico pr', 'athletico'],
@@ -1244,7 +1244,7 @@
     },
     chKey: function (c) {
       if (c.eid) return 'e:' + norm(c.eid);
-      return 'n:' + norm(c.name).replace(/\[.*?\]|\(.*?\)/g, ' ').replace(/(fhd|uhd|hd|sd|4k|h265|hevc|hdr|alt|backup|60fps|50fps)/g, ' ').replace(/[^a-z0-9]+/g, '');
+      return 'n:' + norm(c.name).replace(/\[.*?\]|\(.*?\)/g, ' ').replace(/(fhd|uhd|hd|sd|4k|h265|hevc|hdr|alt|backup|60fps|50fps)/g, ' ').replace(/[^a-z0-9]+/g, '');
     },
     scan: function () {
       if (Ev.scanning || !S.ch.length || !Ev.list.length) return;
@@ -1325,7 +1325,7 @@
     },
     chName: function (e, max) {
       if (!e.ch || !e.ch.length) return '';
-      var n = S.ch[e.ch[0]].name.replace(/\s*(FHD|UHD|HD|SD|4K|H265|HEVC|\[.*?\]|\(.*?\))\s*/gi, ' ');
+      var n = S.ch[e.ch[0]].name.replace(/\s*(FHD|UHD|HD|SD|4K|H265|HEVC|\[.*?\]|\(.*?\))\s*/gi, ' ');
       n = trim(n.replace(/\s+/g, ' '));
       if (e.weak) n = '≈ ' + n;
       if (max && n.length > max) n = n.substring(0, max - 1) + '…';
@@ -1476,7 +1476,7 @@
     var t = c.name;
     if (norm(t).indexOf(ser.n) === 0) t = t.substring(ser.name.length);
     t = trim(t.replace(/^[\s\-:|.]+/, ''));
-    var m = /^.*?(?:[ST]\d{1,2}[\s._\-]*EP?\d{1,4}|\d{1,2}x\d{1,3})[\s\-:|.]*/i.exec(t);
+    var m = /^.*?(?:[ST]\d{1,2}[\s._\-]*EP?\d{1,4}|\d{1,2}x\d{1,3})[\s\-:|.]*/i.exec(t);
     if (m) t = trim(t.substring(m[0].length));
     return t || ('Episódio ' + (c.ep || i + 1));
   }
@@ -2132,6 +2132,9 @@
   function init() {
     if (ANDROID && !window.Hls) { var libs = ['js/hls.min.js', 'js/mpegts.js']; for (var li = 0; li < libs.length; li++) { var sc = document.createElement('script'); sc.src = libs[li]; document.body.appendChild(sc); } }
     fillIcons(); registerKeys(); Player.init();
+    var stFix = document.createElement('style');
+    stFix.innerHTML = '#nav{width:230px!important}#cats{width:320px!important}#items{width:890px!important}#side{flex:0 0 360px!important;width:360px!important;max-width:360px!important}#preview{height:202px!important}#hole{left:1530px!important;width:360px!important;height:202px!important}#now-logo{width:72px!important;height:48px!important}#now-name{font-size:24px!important}#now-meta{font-size:19px!important}#hints{font-size:18px!important;line-height:34px!important;padding:12px 16px!important}#info-poster-box,#info-poster{height:380px!important;max-height:380px!important}';
+    document.head.appendChild(stFix);
     var stFix = document.createElement('style');
     stFix.innerHTML = '#nav{width:230px!important}#cats{width:320px!important}#items{width:890px!important}#side{flex:0 0 360px!important;width:360px!important;max-width:360px!important}#preview{height:202px!important}#hole{left:1530px!important;width:360px!important;height:202px!important}#now-logo{width:72px!important;height:48px!important}#now-name{font-size:24px!important}#now-meta{font-size:19px!important}#hints{font-size:18px!important;line-height:34px!important;padding:12px 16px!important}#info-poster-box,#info-poster{height:380px!important;max-height:380px!important}';
     document.head.appendChild(stFix);
