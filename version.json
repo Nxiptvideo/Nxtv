@@ -5,11 +5,6 @@
       "js": "web/app.js",
       "css": "web/style.css",
       "html": "web/body.html"
-    },
-    "abs": {
-      "js": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/d9216214ec7e4fb5d7d06551d08e5bf7f46f24a9/web/app.js",
-      "css": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/d9216214ec7e4fb5d7d06551d08e5bf7f46f24a9/web/style.css",
-      "html": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/d9216214ec7e4fb5d7d06551d08e5bf7f46f24a9/web/body.html"
     }
   },
   "roku": {
