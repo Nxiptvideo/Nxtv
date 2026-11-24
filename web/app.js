@@ -9,7 +9,7 @@
     PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, FF: 417, RW: 412, DONE: 65376, CANCEL: 65385, PGUP: 33, PGDN: 34, MENU: 1082 };
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid || /android=1/.test(location.search);
-  var APP_VER = '5.1.1';
+  var APP_VER = '5.1.2';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   function bridge(fn) { try { if (window.NxAndroid && NxAndroid[fn]) NxAndroid[fn](); } catch (e) {} }
   function focusIn(el) { el.focus(); if (ANDROID) bridge('showKeyboard'); }
@@ -592,7 +592,7 @@
       var more = ser.cbs || []; ser.cbs = null;
       cb(eps.length > 0);
       for (var w = 0; w < more.length; w++) more[w](eps.length > 0);
-      if (S.mode === 'main' && quiet) renderSide();
+      if (S.mode === 'main' && quiet) { renderSide(); Det.refresh(); }
     });
   }
 
@@ -1631,6 +1631,7 @@
           var d = null; try { d = JSON.parse(t); } catch (e) { d = null; }
           c.info = d && d.info ? infoOf(d.info) : null;
           if (S.mode === 'main' && curKind() === 'movie' && curItem() === it) renderSide();
+          if (Det.open && Det.it === it) Det.refresh();
         });
       }, 450);
     } else if (kind === 'series') {
@@ -1705,6 +1706,7 @@
       $('info-genre').innerHTML = gen;
       $('info-plot').innerHTML = plot ? esc(plot) : (wait ? '<span class="dim">Carregando sinopse...</span>' : (it !== null && S.api && (kind === 'movie' || kind === 'series') ? '<span class="dim">Sem sinopse</span>' : ''));
       if (it !== null && !locked(kind, it)) wantInfo(kind, it);
+      var pe = $('info-plot'); setClass($('info-more'), 'hidden', !(plot && pe.scrollHeight > pe.clientHeight + 4));
       var p = $('info-poster'); p.style.visibility = logo ? 'visible' : 'hidden'; if (logo && p.getAttribute('src') !== logo) p.src = logo;
     }
     renderHints(kind);
@@ -1714,6 +1716,7 @@
     if (kind === 'live' || kind === 'none') h = '<div><span class="k">OK</span>assistir · OK de novo = tela cheia</div>' + (ANDROID ? '<div><span class="k">⏪⏩</span>pular página · trocar canal</div>' : '<div><span class="k">0-9</span>número do canal</div>');
     else if (kind === 'movie') h = '<div><span class="k">OK</span>assistir o filme</div>';
     else if (kind === 'series') h = '<div><span class="k">OK</span>ver temporadas e episódios</div>';
+    if (kind === 'movie' || kind === 'series' || kind === 'ep') h += '<div><span class="k">▶</span>sinopse em tela cheia</div>';
     else if (kind === 'event') { $('hints').innerHTML = '<div><span class="k">OK</span>abrir o canal que está passando o jogo</div><div>Horários de Brasília · placar atualiza sozinho</div>'; return; }
     else if (kind === 'ep') h = '<div><span class="k">OK</span>assistir · <span style="color:#22d36b;font-weight:bold">✓</span> = já assistido</div><div><span class="k">◀</span>temporadas · VOLTAR séries</div>';
     if (ANDROID) h += '<div><span class="k">☰</span>favoritar</div><div><span class="k">▲</span>no topo: pesquisa e configurações</div>';
@@ -1914,6 +1917,61 @@
       else if (k === K.BACK || k === K.ESC) { Ask.close(-1); return; }
       for (var i = 0; i < b.length; i++) setClass(b[i], 'sel', i === Ask.sel);
     }
+  };
+
+
+  /* ================= sinopse em tela cheia ================= */
+  var Det = {
+    open: false, sel: 0, kind: '', it: null,
+    show: function () {
+      var it = curItem(), kind = curKind();
+      if (it === null || (kind !== 'movie' && kind !== 'series' && kind !== 'ep')) return;
+      if (locked(kind, it)) { needPin(function () { Det.show(); }); return; }
+      Det.kind = kind; Det.it = it; Det.open = true; Det.sel = 0;
+      Det.fill(); show($('det')); $('det-plot').scrollTop = 0;
+    },
+    fill: function () {
+      var kind = Det.kind, it = Det.it, name, logo, gen, ln, plot, wait = false;
+      if (kind === 'series') {
+        var se = S.series[it]; name = se.name; logo = se.logo; gen = genreChips(se.info && se.info.genre, se.group); ln = infoLine(se.info); plot = se.info ? se.info.plot : '';
+        wait = !se.eps && !!S.api && !!se.id;
+        if (se.eps) { var ss = seasonsOf(it); ln = (ln ? ln + ' · ' : '') + ss.length + (ss.length > 1 ? ' temporadas' : ' temporada') + ' · ' + se.eps.length + ' episódios'; }
+      } else if (kind === 'ep') {
+        var c = S.ch[it], ser = S.series[S.ep.s];
+        name = ser.name + ' · ' + (c.se ? 'T' + c.se + ' · ' : '') + epLabel(c, S.ep.i) + ' — ' + epTitle(c, ser, S.ep.i);
+        logo = c.logo || ser.logo; gen = genreChips(ser.info && ser.info.genre, ser.group); ln = infoLine(c.info);
+        plot = c.info && c.info.plot ? c.info.plot : (ser.info ? ser.info.plot : '');
+      } else {
+        var mv = S.ch[it]; name = mv.name; logo = mv.logo; gen = genreChips(mv.info && mv.info.genre, mv.group); ln = infoLine(mv.info); plot = mv.info ? mv.info.plot : '';
+        wait = mv.info === undefined && !!S.api;
+      }
+      $('det-name').innerHTML = esc(name); $('det-genre').innerHTML = gen; $('det-meta').innerHTML = esc(ln || '');
+      $('det-plot').innerHTML = plot ? esc(plot) : '<span class="dim">' + (wait ? 'Carregando sinopse...' : 'Sem sinopse') + '</span>';
+      var p = $('det-poster'); p.style.visibility = logo ? 'visible' : 'hidden'; if (logo && p.getAttribute('src') !== logo) p.src = logo;
+      var b1 = kind === 'series' ? 'Ver episódios' : 'Assistir';
+      if (kind !== 'series') { var cc = S.ch[it], r = Res.get(cc); if (r) b1 = 'Assistir · parou em ' + fmtTime(r.t); }
+      var lbl = [b1, 'Voltar'], h = '';
+      for (var i = 0; i < 2; i++) h += '<div class="ask-btn' + (i === Det.sel ? ' sel' : '') + '">' + esc(lbl[i]) + '</div>';
+      $('det-btns').innerHTML = h;
+      if (wait) wantInfo(kind, it);
+    },
+    close: function () { Det.open = false; hide($('det')); renderAll(); },
+    key: function (k) {
+      var pl = $('det-plot');
+      if (k === K.LEFT) Det.sel = 0;
+      else if (k === K.RIGHT) Det.sel = 1;
+      else if (k === K.UP || k === K.CHUP || k === K.PGUP) pl.scrollTop = Math.max(0, pl.scrollTop - 150);
+      else if (k === K.DOWN || k === K.CHDOWN || k === K.PGDN) pl.scrollTop = pl.scrollTop + 150;
+      else if (k === K.BACK || k === K.ESC || k === K.INFO) { Det.close(); return; }
+      else if (k === K.ENTER || k === K.PLAY || k === K.PLAYPAUSE) {
+        if (Det.sel === 1 && k === K.ENTER) { Det.close(); return; }
+        Det.open = false; hide($('det'));
+        if (curItem() === Det.it) enterItem(); else renderAll();
+        return;
+      }
+      var b = $('det-btns').children; for (var i = 0; i < b.length; i++) setClass(b[i], 'sel', i === Det.sel);
+    },
+    refresh: function () { if (Det.open) Det.fill(); }
   };
 
   var seenT, resSaveT;
@@ -2226,7 +2284,7 @@
     else if (k === K.CHUP || k === K.PGUP) moveIdx(-ROWS);
     else if (k === K.CHDOWN || k === K.PGDN) moveIdx(ROWS);
     else if (k === K.ENTER) { if (S.sec === 'events') Ev.open(curItem()); else enterItem(); }
-    else if (k === K.RIGHT) { if (curKind() === 'series') enterItem(); }
+    else if (k === K.RIGHT || k === K.INFO) { var kk = curKind(); if (kk === 'movie' || kk === 'series' || kk === 'ep') Det.show(); }
     else if (k === K.LEFT) { S.zone = 'cats'; renderAll(); }
     else if (k === K.BACK || k === K.ESC) { if (S.ep) exitSeries(); else { S.zone = 'cats'; renderAll(); } }
     else if (k === K.YELLOW) { if (S.sec !== 'events') toggleFav(); }
@@ -2284,6 +2342,7 @@
     var k = e.keyCode, ae = document.activeElement, inInput = ae && ae.tagName === 'INPUT';
     if (Ask.open) { e.preventDefault(); Ask.key(k); return; }
     if (S.mode === 'pin') { pinKey(k, e); return; }
+    if (Det.open && !inInput) { e.preventDefault(); Det.key(k === K.BKSP ? K.BACK : k); return; }
     if (S.mode === 'splash') {
       if (hasClass($('sp-btns'), 'hidden')) { if (k === K.BACK || k === K.ESC) exitApp(); e.preventDefault(); return; }
       formKey('splash', k, e, function (el) { if (el.id === 'sp-retry') startLoad(true); else openSettings(); }, exitApp);
