@@ -3,7 +3,7 @@
   'use strict';
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid;
-  var APP_VER = '1.0.2';
+  var APP_VER = '1.0.3';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   var ICONS = {};
   function openFullLive() {}
@@ -1320,7 +1320,7 @@
       $('pl-name').innerHTML = esc(vod && c.type === 'series' && S.series[c.sid] ? S.series[c.sid].name + ' · ' + (c.se ? 'T' + c.se + ' ' : '') + epLabel(c, 0) : c.name);
       hide($('pl-msg')); show($('pl-load'));
       clearTimeout(this.loadT);
-      this.loadT = setTimeout(function () { if (g === self.gen) self.fail(); }, vod ? 40000 : 15000);
+      this.loadT = setTimeout(function () { if (g === self.gen) self.fail(); }, vod ? 40000 : (self.idx + 1 < self.list.length ? 8000 : 15000));
       var ok = function () {
         if (g !== self.gen) return;
         clearTimeout(self.loadT); hide($('pl-load'));
@@ -1332,12 +1332,12 @@
       v.onplaying = function () { ok(); uiShow(); };
       v.onended = function () { if (g === self.gen && vod) vodEnded(); };
       if (at.eng === 'hls') {
-        var hl = this.hls = new Hls({ maxBufferLength: vod ? 60 : 20, backBufferLength: 20, manifestLoadingMaxRetry: 2, levelLoadingMaxRetry: 2 });
+        var hl = this.hls = new Hls({ maxBufferLength: vod ? 60 : 20, backBufferLength: 20, manifestLoadingMaxRetry: 2, levelLoadingMaxRetry: 2, startFragPrefetch: true, liveSyncDurationCount: 2 });
         hl.on(Hls.Events.ERROR, function (ev, d) { if (g === self.gen && d && d.fatal) self.fail(); });
         hl.loadSource(at.url); hl.attachMedia(v);
       } else if (at.eng === 'ts') {
         var mp = this.mp = mpegts.createPlayer({ type: 'mpegts', isLive: !vod, url: at.url },
-          { enableWorker: false, lazyLoad: false, liveBufferLatencyChasing: !vod, autoCleanupSourceBuffer: true });
+          { enableWorker: false, enableStashBuffer: !!vod, stashInitialSize: 128 * 1024, lazyLoad: false, liveBufferLatencyChasing: !vod, autoCleanupSourceBuffer: true });
         mp.on(mpegts.Events.ERROR, function () { if (g === self.gen) self.fail(); });
         mp.attachMediaElement(v); mp.load();
       } else {
