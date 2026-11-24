@@ -9,7 +9,7 @@
     PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, FF: 417, RW: 412, DONE: 65376, CANCEL: 65385, PGUP: 33, PGDN: 34, MENU: 1082 };
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid || /android=1/.test(location.search);
-  var APP_VER = '5.1.4';
+  var APP_VER = '5.1.5';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   function bridge(fn) { try { if (window.NxAndroid && NxAndroid[fn]) NxAndroid[fn](); } catch (e) {} }
   function focusIn(el) { el.focus(); if (ANDROID) bridge('showKeyboard'); }
@@ -1012,7 +1012,7 @@
       pvMsg('');
       this.loadingUI(true);
       clearTimeout(this.loadT);
-      this.loadT = setTimeout(function () { if (g === self.gen) self.fail(); }, vod ? 40000 : 15000);
+      this.loadT = setTimeout(function () { if (g === self.gen) self.fail(); }, vod ? 40000 : (self.idx + 1 < self.list.length ? 8000 : 15000));
       var ok = function () {
         if (g !== self.gen) return;
         clearTimeout(self.loadT); self.loadingUI(false);
@@ -1022,6 +1022,7 @@
         var av = this.av;
         try {
           av.open(at.url);
+          if (!vod) { try { av.setBufferingParam('PLAYER_BUFFER_FOR_PLAY', 'PLAYER_BUFFER_SIZE_IN_SECOND', 4); av.setBufferingParam('PLAYER_BUFFER_FOR_RESUME', 'PLAYER_BUFFER_SIZE_IN_SECOND', 4); } catch (e) {} }
           av.setListener({
             onbufferingstart: function () { if (g === self.gen) self.loadingUI(true); },
             onbufferingcomplete: function () { if (g === self.gen) ok(); },
@@ -1045,12 +1046,12 @@
         v.onplaying = function () { ok(); };
         v.onended = function () { if (g === self.gen && vod) vodEnded(); };
         if (at.eng === 'hls') {
-          var hl = this.hls = new Hls({ maxBufferLength: vod ? 60 : 20, backBufferLength: 20, manifestLoadingMaxRetry: 2, levelLoadingMaxRetry: 2 });
+          var hl = this.hls = new Hls({ maxBufferLength: vod ? 60 : 20, backBufferLength: 20, manifestLoadingMaxRetry: 2, levelLoadingMaxRetry: 2, startFragPrefetch: true, liveSyncDurationCount: 2, startLevel: -1 });
           hl.on(Hls.Events.ERROR, function (ev, d) { if (g === self.gen && d && d.fatal) self.fail(); });
           hl.loadSource(at.url); hl.attachMedia(v);
         } else if (at.eng === 'ts') {
           var mp = this.mp = mpegts.createPlayer({ type: 'mpegts', isLive: !vod, url: at.url },
-            { enableWorker: false, lazyLoad: false, liveBufferLatencyChasing: !vod, autoCleanupSourceBuffer: true });
+            { enableWorker: false, enableStashBuffer: !!vod, stashInitialSize: 128 * 1024, lazyLoad: false, liveBufferLatencyChasing: !vod, autoCleanupSourceBuffer: true });
           mp.on(mpegts.Events.ERROR, function () { if (g === self.gen) self.fail(); });
           mp.attachMediaElement(v); mp.load();
         } else {
