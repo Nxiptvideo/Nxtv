@@ -9,7 +9,7 @@
     PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, FF: 417, RW: 412, DONE: 65376, CANCEL: 65385, PGUP: 33, PGDN: 34, MENU: 1082 };
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid || /android=1/.test(location.search);
-  var APP_VER = '5.1.0';
+  var APP_VER = '5.1.1';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   function bridge(fn) { try { if (window.NxAndroid && NxAndroid[fn]) NxAndroid[fn](); } catch (e) {} }
   function focusIn(el) { el.focus(); if (ANDROID) bridge('showKeyboard'); }
@@ -562,17 +562,19 @@
       if (S.mode === 'main') renderAll();
     });
   }
-  function loadSeriesInfo(s, cb) {
+  function loadSeriesInfo(s, cb, quiet) {
     var ser = S.series[s];
     if (ser.eps) { cb(ser.eps.length > 0); return; }
-    if (!S.api || !ser.id || ser.loading) { if (!ser.loading) { ser.eps = []; cb(false); } return; }
-    ser.loading = true; toast('Carregando episódios...', 2500);
+    if (ser.loading) { (ser.cbs = ser.cbs || []).push(cb); if (!quiet) toast('Carregando episódios...', 2500); return; }
+    if (!S.api || !ser.id) { ser.eps = []; cb(false); return; }
+    ser.loading = true; if (!quiet) toast('Carregando episódios...', 2500);
     var cr = S.api;
     getText(apiUrl(cr, 'get_series_info', '&series_id=' + encodeURIComponent(ser.id)), 90000, function (t) {
       ser.loading = false;
       var d = null, eps = [], sb = streamBase(cr, 'series');
       try { d = JSON.parse(t); } catch (e) { d = null; }
       var E = d && d.episodes ? d.episodes : null;
+      if (d && d.info && !ser.info) ser.info = infoOf(d.info);
       if (E) {
         for (var key in E) {
           if (!E.hasOwnProperty(key) || !E[key] || !E[key].length) continue;
@@ -580,13 +582,17 @@
             var e = E[key][i], se = parseInt(e.season || key, 10) || 0, en = parseInt(e.episode_num, 10) || (i + 1);
             var j = S.ch.length;
             S.ch.push({ name: e.title || ('Episódio ' + en), logo: (e.info && e.info.movie_image) || ser.logo, group: ser.group,
-              url: sb + e.id + '.' + (e.container_extension || 'mp4'), type: 'series', se: se, ep: en, sid: s, adult: ser.adult });
+              url: sb + e.id + '.' + (e.container_extension || 'mp4'), type: 'series', se: se, ep: en, sid: s, adult: ser.adult,
+              info: e.info ? infoOf(e.info) : null });
             eps.push(j);
           }
         }
       }
       ser.eps = eps; ser.sorted = false; ser.seasons = null;
+      var more = ser.cbs || []; ser.cbs = null;
       cb(eps.length > 0);
+      for (var w = 0; w < more.length; w++) more[w](eps.length > 0);
+      if (S.mode === 'main' && quiet) renderSide();
     });
   }
 
@@ -1596,6 +1602,59 @@
   }
   function img(src) { return src ? '<img src="' + esc(src) + '" onerror="this.style.visibility=\'hidden\'">' : '<img style="visibility:hidden">'; }
 
+
+  /* ================= sinopse e gênero de filmes e séries (servidor Xtream) ================= */
+  function infoOf(o) {
+    if (!o) return null;
+    var yr = String(o.releasedate || o.releaseDate || o.release_date || o.air_date || o.year || '').substring(0, 4);
+    if (!/^\d{4}$/.test(yr)) yr = '';
+    var rt = parseFloat(o.rating_5based ? o.rating_5based * 2 : o.rating); if (!(rt > 0)) rt = 0;
+    var du = o.duration || '';
+    if (!du && o.duration_secs) { var mn = Math.round(o.duration_secs / 60); du = mn >= 60 ? Math.floor(mn / 60) + 'h' + pad2(mn % 60) : mn + ' min'; }
+    else if (/^\d\d:\d\d:\d\d$/.test(du)) { var hh = parseInt(du.substring(0, 2), 10), mm2 = parseInt(du.substring(3, 5), 10); du = hh ? hh + 'h' + pad2(mm2) : mm2 + ' min'; }
+    var plot = trim(String(o.plot || o.description || o.overview || '').replace(/\s+/g, ' '));
+    return { plot: plot, genre: trim(String(o.genre || '')), year: yr, rating: rt ? (Math.round(rt * 10) / 10) : 0, dur: du };
+  }
+  var infoT = null;
+  // busca os detalhes do item selecionado (só quando a seleção para por meio segundo)
+  function wantInfo(kind, it) {
+    clearTimeout(infoT);
+    if (!S.api || it === null) return;
+    if (kind === 'movie') {
+      var c = S.ch[it]; if (!c || c.info !== undefined || c.type !== 'movie') return;
+      var id = streamId(c.url); if (!id) { c.info = null; return; }
+      infoT = setTimeout(function () {
+        if (c.info !== undefined || c.infoLoading) return;
+        c.infoLoading = true;
+        getText(apiUrl(S.api, 'get_vod_info', '&vod_id=' + id), 15000, function (t) {
+          c.infoLoading = false;
+          var d = null; try { d = JSON.parse(t); } catch (e) { d = null; }
+          c.info = d && d.info ? infoOf(d.info) : null;
+          if (S.mode === 'main' && curKind() === 'movie' && curItem() === it) renderSide();
+        });
+      }, 450);
+    } else if (kind === 'series') {
+      var se = S.series[it]; if (!se || se.eps || se.loading || !se.id) return;
+      infoT = setTimeout(function () {
+        if (se.eps || se.loading) return;
+        loadSeriesInfo(it, function () {}, true);
+      }, 450);
+    }
+  }
+  function genreChips(g, fallback) {
+    var parts = (g || fallback || '').split(/\s*[,\/|]\s*/), h = '', n = 0;
+    for (var i = 0; i < parts.length && n < 3; i++) if (trim(parts[i])) { h += '<span class="gch">' + esc(trim(parts[i])) + '</span>'; n++; }
+    return h;
+  }
+  function infoLine(inf) {
+    if (!inf) return '';
+    var a = [];
+    if (inf.year) a.push(inf.year);
+    if (inf.rating) a.push('★ ' + String(inf.rating).replace('.', ','));
+    if (inf.dur) a.push(inf.dur);
+    return a.join(' · ');
+  }
+
   var resumeT;
   function renderSide() {
     var kind = curKind(), livePanel = (kind === 'live' || kind === 'none') && S.sec !== 'events';
@@ -1620,20 +1679,32 @@
     } else {
       hide($('live-panel')); show($('info-panel'));
       if (Player.active && S.mode === 'main') Player.stop();
-      var it = curItem(), name = '', meta = '', logo = '';
+      var it = curItem(), name = '', meta = '', logo = '', gen = '', plot = '', ln = '', wait = false;
       if (it !== null && locked(kind, it)) { name = 'Conteúdo adulto'; meta = 'Bloqueado por senha'; }
       else if (it !== null) {
         if (kind === 'series') {
           var s = S.series[it], ss = seasonsOf(it);
           name = s.name; logo = s.logo;
-          meta = s.eps ? ss.length + (ss.length > 1 ? ' temporadas' : ' temporada') + ' · ' + s.eps.length + ' episódios' + (seenCount(s.eps) ? ' · ' + seenCount(s.eps) + ' vistos' : '') : s.group + ' · OK para ver os episódios';
+          meta = s.eps ? ss.length + (ss.length > 1 ? ' temporadas' : ' temporada') + ' · ' + s.eps.length + ' episódios' + (seenCount(s.eps) ? ' · ' + seenCount(s.eps) + ' vistos' : '') : 'OK para ver os episódios';
+          gen = genreChips(s.info && s.info.genre, s.group); ln = infoLine(s.info); plot = s.info ? s.info.plot : '';
+          wait = !s.eps && !!S.api && !!s.id;
         } else if (kind === 'ep') {
           var c = S.ch[it], ser = S.series[S.ep.s];
           name = (c.se ? 'T' + c.se + ' · ' : '') + epLabel(c, S.ep.i) + ' — ' + epTitle(c, ser, S.ep.i);
           logo = c.logo || ser.logo; meta = ser.name + (isSeen(c) ? ' · ✓ Já assistido' : '');
-        } else { var m = S.ch[it]; name = m.name; logo = m.logo; meta = m.group; }
+          gen = genreChips(ser.info && ser.info.genre, ser.group); ln = infoLine(c.info);
+          plot = c.info && c.info.plot ? c.info.plot : (ser.info ? ser.info.plot : '');
+        } else {
+          var m = S.ch[it]; name = m.name; logo = m.logo; meta = '';
+          gen = genreChips(m.info && m.info.genre, m.group); ln = infoLine(m.info); plot = m.info ? m.info.plot : '';
+          wait = m.info === undefined && !!S.api;
+        }
       }
+      if (ln) meta = meta ? ln + ' · ' + meta : ln;
       $('info-name').innerHTML = esc(name); $('info-meta').innerHTML = esc(meta);
+      $('info-genre').innerHTML = gen;
+      $('info-plot').innerHTML = plot ? esc(plot) : (wait ? '<span class="dim">Carregando sinopse...</span>' : (it !== null && S.api && (kind === 'movie' || kind === 'series') ? '<span class="dim">Sem sinopse</span>' : ''));
+      if (it !== null && !locked(kind, it)) wantInfo(kind, it);
       var p = $('info-poster'); p.style.visibility = logo ? 'visible' : 'hidden'; if (logo && p.getAttribute('src') !== logo) p.src = logo;
     }
     renderHints(kind);

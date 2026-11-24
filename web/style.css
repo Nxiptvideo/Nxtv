@@ -95,11 +95,15 @@ body.livepanel.playing #preview{background:transparent}
 .now-txt{overflow:hidden}
 #now-name{font-size:36px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #now-meta{font-size:24px;color:#8ea3cc;margin-top:8px}
-#info-panel{padding:24px;margin-bottom:20px;text-align:center;flex:1}
-#info-poster-box{height:470px;display:flex;align-items:center;justify-content:center;background:#050f28;border-radius:14px;margin-bottom:18px;overflow:hidden}
-#info-poster{max-width:100%;max-height:470px}
-#info-name{font-size:36px;font-weight:bold;line-height:44px;max-height:132px;overflow:hidden}
-#info-meta{font-size:25px;color:#8ea3cc;margin-top:10px}
+#info-panel{padding:20px 22px;margin-bottom:20px;text-align:center;flex:1;display:flex;flex-direction:column;overflow:hidden}
+#info-poster-box{height:260px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#050f28;border-radius:14px;margin-bottom:18px;overflow:hidden}
+#info-poster{max-width:100%;max-height:260px}
+#info-name{font-size:32px;font-weight:bold;line-height:40px;max-height:80px;overflow:hidden;flex-shrink:0}
+#info-meta{font-size:23px;color:#8ea3cc;margin-top:8px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#info-genre{margin-top:10px;flex-shrink:0;max-height:44px;overflow:hidden}
+#info-genre .gch{display:inline-block;background:#ff7a00;color:#fff;font-weight:bold;font-size:20px;line-height:32px;padding:0 14px;border-radius:16px;margin:0 4px 6px}
+#info-plot{margin-top:10px;font-size:21px;line-height:29px;color:#d6e0f5;text-align:left;overflow:hidden;flex:1;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:9}
+#info-plot .dim{color:#6f86b5}
 #hints{padding:14px 24px;font-size:23px;color:#b9c7e6;line-height:42px;flex:1;overflow:hidden}
 #info-panel:not(.hidden) ~ #hints{flex:0 0 auto}
 .k{display:inline-block;min-width:66px;text-align:center;background:#ffffff1f;border-radius:8px;margin-right:14px;font-weight:bold;color:#fff;line-height:36px;padding:0 6px}
