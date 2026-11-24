@@ -1,21 +1,21 @@
 {
   "web": {
-    "ver": "5.0.9",
+    "ver": "5.1.0",
     "files": {
       "js": "web/app.js",
       "css": "web/style.css",
       "html": "web/body.html"
     },
     "abs": {
-      "js": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/e026c5a4057a777e120baf354d5e7a6c0c374ba1/web/app.js",
-      "css": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/e026c5a4057a777e120baf354d5e7a6c0c374ba1/web/style.css",
-      "html": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/e026c5a4057a777e120baf354d5e7a6c0c374ba1/web/body.html"
+      "js": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/5f1bbec213760673f235d127ff5daa9cae8a55d7/web/app.js",
+      "css": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/5f1bbec213760673f235d127ff5daa9cae8a55d7/web/style.css",
+      "html": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/5f1bbec213760673f235d127ff5daa9cae8a55d7/web/body.html"
     }
   },
   "roku": {
     "ver": "1.1.5",
     "zip": "roku/NxTvLib.zip",
-    "zipAbs": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/e026c5a4057a777e120baf354d5e7a6c0c374ba1/roku/NxTvLib.zip"
+    "zipAbs": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/5f1bbec213760673f235d127ff5daa9cae8a55d7/roku/NxTvLib.zip"
   },
-  "notes": "Filmes, séries e pesquisa mais rápidos · preview menor na TV ao Vivo"
+  "notes": "Colunas maiores para ler melhor · coluna do preview do mesmo tamanho do preview"
 }
