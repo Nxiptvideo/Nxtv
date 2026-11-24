@@ -1,21 +1,21 @@
 {
   "web": {
-    "ver": "5.1.3",
+    "ver": "5.1.4",
     "files": {
       "js": "web/app.js",
       "css": "web/style.css",
       "html": "web/body.html"
     },
     "abs": {
-      "js": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/fcd2a84c528ab4e5dcf929fe732a9471af454c05/web/app.js",
-      "css": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/fcd2a84c528ab4e5dcf929fe732a9471af454c05/web/style.css",
-      "html": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/fcd2a84c528ab4e5dcf929fe732a9471af454c05/web/body.html"
+      "js": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/ad15b3f8650254a8015407aefcd3c5b43a61a15c/web/app.js",
+      "css": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/ad15b3f8650254a8015407aefcd3c5b43a61a15c/web/style.css",
+      "html": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/ad15b3f8650254a8015407aefcd3c5b43a61a15c/web/body.html"
     }
   },
   "roku": {
-    "ver": "1.1.8",
+    "ver": "1.1.9",
     "zip": "roku/NxTvLib.zip",
-    "zipAbs": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/fcd2a84c528ab4e5dcf929fe732a9471af454c05/roku/NxTvLib.zip"
+    "zipAbs": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/ad15b3f8650254a8015407aefcd3c5b43a61a15c/roku/NxTvLib.zip"
   },
-  "notes": "A coluna em uso fica mais larga e o nome comprido corre na linha"
+  "notes": "Menos travamentos: filmes e séries só são baixados ao abrir Filmes, Séries ou Pesquisa"
 }
