@@ -1,21 +1,21 @@
 {
   "web": {
-    "ver": "5.1.4",
+    "ver": "5.1.5",
     "files": {
       "js": "web/app.js",
       "css": "web/style.css",
       "html": "web/body.html"
     },
     "abs": {
-      "js": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/ad15b3f8650254a8015407aefcd3c5b43a61a15c/web/app.js",
-      "css": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/ad15b3f8650254a8015407aefcd3c5b43a61a15c/web/style.css",
-      "html": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/ad15b3f8650254a8015407aefcd3c5b43a61a15c/web/body.html"
+      "js": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/e302290ea0acc0d20bb9e5b49a0d781d8b370fc7/web/app.js",
+      "css": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/e302290ea0acc0d20bb9e5b49a0d781d8b370fc7/web/style.css",
+      "html": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/e302290ea0acc0d20bb9e5b49a0d781d8b370fc7/web/body.html"
     }
   },
   "roku": {
-    "ver": "1.1.9",
+    "ver": "1.2.0",
     "zip": "roku/NxTvLib.zip",
-    "zipAbs": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/ad15b3f8650254a8015407aefcd3c5b43a61a15c/roku/NxTvLib.zip"
+    "zipAbs": "https://raw.githubusercontent.com/Nxiptvideo/nxtv/e302290ea0acc0d20bb9e5b49a0d781d8b370fc7/roku/NxTvLib.zip"
   },
-  "notes": "Menos travamentos: filmes e séries só são baixados ao abrir Filmes, Séries ou Pesquisa"
+  "notes": "Canais abrem mais rápido"
 }
