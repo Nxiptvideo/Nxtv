@@ -3,7 +3,7 @@
   'use strict';
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid;
-  var APP_VER = '1.0.0';
+  var APP_VER = '1.0.1';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   var ICONS = {};
   function openFullLive() {}
@@ -89,11 +89,6 @@
   function saveLists() { save('nx_lists', S.lists); save('nx_active', S.activeId); }
   function activeList() { for (var i = 0; i < S.lists.length; i++) if (S.lists[i].id === S.activeId) return S.lists[i]; return null; }
   function fixServer(s) { s = trim(s).replace(/\/+$/, ''); return /^https?:\/\//i.test(s) ? s : 'http://' + s; }
-  function buildUrl(cfg) {
-    if (cfg.type === 'xtream')
-      return fixServer(cfg.server) + '/get.php?username=' + encodeURIComponent(cfg.user) + '&password=' + encodeURIComponent(cfg.pass) + '&type=m3u_plus&output=ts';
-    return cfg.url;
-  }
   var EP1 = /^(.*?)[\s._\-|:]*[ST](\d{1,2})[\s._\-]*EP?(\d{1,4})/i;
   var EP3 = /^(.*?)[\s._\-|:]*temporada\s*(\d{1,2}).*?epis[oó]dio\s*(\d{1,4})/i;
   var EP2 = /^(.*?)[\s._\-|:]+(\d{1,2})x(\d{1,3})(?!\d)/i;
@@ -238,14 +233,6 @@
   function sortEps(ser) {
     if (ser.sorted || !ser.eps) return; ser.sorted = true;
     ser.eps.sort(function (a, b) { var A = S.ch[a], B = S.ch[b]; return (A.se - B.se) || (A.ep - B.ep) || (a - b); });
-  }
-  function credsOf(L) {
-    if (!L) return null;
-    if (L.type === 'xtream') return { base: fixServer(L.server), u: L.user, p: L.pass };
-    var m = /^(https?:\/\/[^\/?#]+)\/get\.php\?(.*)$/i.exec(L.url || ''); if (!m) return null;
-    var u = /(?:^|&)username=([^&]*)/.exec(m[2]), p = /(?:^|&)password=([^&]*)/.exec(m[2]);
-    if (!u || !p) return null;
-    try { return { base: m[1], u: decodeURIComponent(u[1]), p: decodeURIComponent(p[1]) }; } catch (e) { return null; }
   }
   function apiUrl(cr, action, extra) {
     return cr.base + '/player_api.php?username=' + encodeURIComponent(cr.u) + '&password=' + encodeURIComponent(cr.p) + '&action=' + action + (extra || '');
@@ -1250,7 +1237,7 @@
     if (error) {
       hide($('sp-spin')); hide($('sp-bar')); show($('sp-btns'));
       var L = activeList(), srv = L ? (L.type === 'xtream' ? fixServer(L.server) : (L.url || '')) : '';
-      if (location.protocol === 'https:' && /^http:/i.test(srv)) $('sp-sub').innerHTML = esc((sub ? sub + '. ' : '') + 'No iPhone (Safari), listas com endereço http não abrem: o Safari só aceita https. Veja em Configurações se sua lista tem endereço https.');
+      if (location.protocol === 'https:' && /^http:/i.test(srv)) $('sp-sub').innerHTML = esc('O NxTv tentou abrir a lista com https (o único que o Safari do iPhone aceita) e o servidor da lista não respondeu. Esta lista não funciona pelo Safari.');
     } else { show($('sp-spin')); show($('sp-bar')); hide($('sp-btns')); }
   }
   function renderSide() { if (S.det) renderDetail(); }
@@ -1266,6 +1253,22 @@
   function renderLater() { if (!renderAllT) renderAllT = setTimeout(renderAll, 120); }
   function curKind() { return 'none'; }
   function curItem() { return null; }
+
+  /* ---------- no Safari (página https) a lista é aberta com https ---------- */
+  function upHttps(u) { return location.protocol === 'https:' ? String(u || '').replace(/^http:\/\//i, 'https://') : u; }
+  function credsOf(L) {
+    if (!L) return null;
+    if (L.type === 'xtream') return { base: upHttps(fixServer(L.server)), u: L.user, p: L.pass };
+    var m = /^(https?:\/\/[^\/?#]+)\/get\.php\?(.*)$/i.exec(L.url || ''); if (!m) return null;
+    var u = /(?:^|&)username=([^&]*)/.exec(m[2]), p = /(?:^|&)password=([^&]*)/.exec(m[2]);
+    if (!u || !p) return null;
+    try { return { base: upHttps(m[1]), u: decodeURIComponent(u[1]), p: decodeURIComponent(p[1]) }; } catch (e) { return null; }
+  }
+  function buildUrl(cfg) {
+    if (cfg.type === 'xtream')
+      return upHttps(fixServer(cfg.server)) + '/get.php?username=' + encodeURIComponent(cfg.user) + '&password=' + encodeURIComponent(cfg.pass) + '&type=m3u_plus&output=ts';
+    return upHttps(cfg.url);
+  }
 
   /* ---------- player ---------- */
   var Player = {
@@ -1718,7 +1721,7 @@
 
   /* ---------- configurações ---------- */
   function openSettings() {
-    if (S.mode === 'splash' && !S.lists.length) { hide($('splash')); S.mode = 'main'; }
+    if (S.mode === 'splash') { hide($('splash')); S.mode = 'main'; renderAll(); }
     S.pg = 'settings'; S.det = null; show($('page')); renderSettings();
   }
   function renderSettings() {
