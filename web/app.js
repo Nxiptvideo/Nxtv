@@ -9,7 +9,7 @@
     PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, FF: 417, RW: 412, DONE: 65376, CANCEL: 65385, PGUP: 33, PGDN: 34, MENU: 1082 };
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid || /android=1/.test(location.search);
-  var APP_VER = '5.1.6';
+  var APP_VER = '5.1.7';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   function bridge(fn) { try { if (window.NxAndroid && NxAndroid[fn]) NxAndroid[fn](); } catch (e) {} }
   function focusIn(el) { el.focus(); if (ANDROID) bridge('showKeyboard'); }
@@ -940,8 +940,13 @@
   }
   var Player = {
     av: null, vid: null, active: false, cur: 'vid', gen: 0, loadT: null, list: [], idx: 0, lastC: null,
-    init: function () {
+    findAv: function () {
+      if (this.av) return this.av;
       try { if (window.webapis && webapis.avplay) this.av = webapis.avplay; } catch (e) {}
+      return this.av;
+    },
+    init: function () {
+      this.findAv();
       this.vid = $('html-player');
       this.hideObj(); this.hideVid();
     },
@@ -972,12 +977,12 @@
     // tentativas: player (HTML5 ou Samsung) x formato (.ts ou .m3u8); a que funcionar fica salva
     attempts: function (c) {
       if (ANDROID) return this.attemptsDroid(c);
-      var engs = S.engine === 'avplay' ? ['av', 'vid'] : ['vid', 'av'], urls = [c.url], out = [], i, j;
-      if (!this.av) engs = ['vid'];
+      var engs = ['av', 'vid'], urls = [c.url], out = [], i, j;
+      if (!this.findAv()) engs = ['vid'];
       if (c.type === 'live' && this.altUrl(c.url)) urls.push(this.altUrl(c.url));
       for (i = 0; i < engs.length; i++) for (j = 0; j < urls.length; j++) out.push({ eng: engs[i], url: urls[j], key: engs[i] + '|' + j });
       if (c.type === 'live') return this.byStats(out);
-      return out;
+      return out.sort(function (a, b) { return (a.eng === 'av' ? 0 : 1) - (b.eng === 'av' ? 0 : 1); });
     },
     attemptsDroid: function (c) {
       var u = c.url, out = [], i, hasH = !!(window.Hls && Hls.isSupported()), hasT = !!(window.mpegts && mpegts.isSupported());
@@ -998,21 +1003,22 @@
       return out;
     },
     // tempo médio que cada forma de tocar levou para começar (por lista); a mais rápida vai primeiro
-    stats: function () { if (!S.pstat || S.pstatId !== S.activeId) { S.pstat = load('nx_pstat_' + S.activeId, {}) || {}; S.pstatId = S.activeId; } return S.pstat; },
+    stats: function () { if (!S.pstat || S.pstatId !== S.activeId) { S.pstat = load('nx_pst2_' + S.activeId, {}) || {}; S.pstatId = S.activeId; } return S.pstat; },
     byStats: function (out) {
       var st = this.stats(), pref = S.pref, i;
-      for (i = 0; i < out.length; i++) { var v = st[out[i].key]; out[i].est = v !== undefined ? v : (out[i].key === pref ? 3000 : 4500 + i * 10); }
+      for (i = 0; i < out.length; i++) { var v = st[out[i].key]; out[i].est = v !== undefined ? v : (out[i].key === pref ? 3000 : (out[i].key === 'av|0' ? 3500 : out[i].key === 'vid|1' ? 4000 : 4500 + i * 10)); }
       out.sort(function (a, b) { return a.est - b.est; });
       return out;
     },
     note: function (key, ms) {
       var st = this.stats(), o = st[key];
       st[key] = Math.round(o === undefined ? ms : o * 0.6 + ms * 0.4);
-      save('nx_pstat_' + S.activeId, st);
+      save('nx_pst2_' + S.activeId, st);
     },
     play: function (c, step) {
       var self = this, vod = c.type !== 'live';
       if (step === undefined || this.lastC !== c) { this.list = this.attempts(c); this.idx = 0; } else this.idx = step;
+      if (this.lastC !== c) { this.trackPos(c); }
       this.lastC = c;
       var at = this.list[this.idx];
       this.stop(true);
@@ -1026,12 +1032,12 @@
       this.loadingUI(true);
       clearTimeout(this.loadT);
       this.t0 = now();
-      this.loadT = setTimeout(function () { if (g === self.gen) { if (!vod) self.note(at.key, 30000); self.fail(); } }, vod ? 40000 : (self.idx + 1 < self.list.length ? 12000 : 20000));
+      this.loadT = setTimeout(function () { if (g === self.gen) { if (!vod) self.note(at.key, 30000); self.fail(); } }, vod ? 40000 : (self.idx + 1 < self.list.length ? 9000 : 15000));
       var ok = function () {
         if (g !== self.gen) return;
         if (self.t0) { if (!vod) self.note(at.key, now() - self.t0); self.t0 = 0; }
         clearTimeout(self.loadT); self.loadingUI(false);
-        if (!vod && S.pref !== at.key) { S.pref = at.key; save('nx_pref_' + S.activeId, at.key); }
+        if (!vod && S.pref !== at.key) { S.pref = at.key; save('nx_pref2_' + S.activeId, at.key); }
       };
       if (at.eng === 'av') {
         var av = this.av;
@@ -1042,7 +1048,7 @@
             onbufferingstart: function () { if (g === self.gen) self.loadingUI(true); },
             onbufferingcomplete: function () { if (g === self.gen) ok(); },
             onerror: function () { if (g === self.gen) self.fail(); },
-            onstreamcompleted: function () { if (g !== self.gen) return; if (vod) vodEnded(); else self.fail(); }
+            onstreamcompleted: function () { if (g !== self.gen) return; if (vod) { if (!self.recover(c)) vodEnded(); } else self.fail(); }
           });
           this.applyRect();
           try { av.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX'); } catch (e) {}
@@ -1059,7 +1065,7 @@
         v.onerror = function () { if (g === self.gen) self.fail(); };
         v.onwaiting = function () { if (g === self.gen) self.loadingUI(true); };
         v.onplaying = function () { ok(); };
-        v.onended = function () { if (g === self.gen && vod) vodEnded(); };
+        v.onended = function () { if (g === self.gen && vod) { if (!self.recover(c)) vodEnded(); } };
         if (at.eng === 'hls') {
           var hl = this.hls = new Hls({ maxBufferLength: vod ? 60 : 20, backBufferLength: 20, manifestLoadingMaxRetry: 2, levelLoadingMaxRetry: 2, startFragPrefetch: true, liveSyncDurationCount: 2, startLevel: -1 });
           hl.on(Hls.Events.ERROR, function (ev, d) { if (g === self.gen && d && d.fatal) self.fail(); });
@@ -1077,13 +1083,32 @@
       }
       renderNow(); if (S.mode === 'main') renderItems();
     },
+    // filme/episódio caiu no meio (conexão ou fim falso): reconecta e volta ao ponto onde estava
+    recover: function (c) {
+      var d = this.lastDur || 0, p = this.lastPos || 0;
+      if (!c || c.type === 'live' || this.lastC !== c || p < 5000 || (d > 0 && p > d - Math.min(60000, d * 0.05))) return false;
+      if (c !== this.recC) { this.recC = c; this.recN = 0; }
+      if (++this.recN > 4) return false;
+      toast('Reconectando...');
+      this.play(c); Res.seekWhenReady(c, p);
+      return true;
+    },
+    trackPos: function (c) {
+      var self = this; clearInterval(this.posT);
+      if (c.type === 'live') return;
+      this.lastPos = 0; this.lastDur = 0;
+      this.posT = setInterval(function () {
+        if (self.lastC !== c || !self.active || !self.isPlaying()) return;
+        var t = self.times(); if (t[0] > 0) { self.lastPos = t[0]; self.lastDur = t[1]; }
+      }, 3000);
+    },
     loadingUI: function (on) {
       var self = this;
       clearInterval(this.ldT);
       var txt = function () {
         if (!self.t0) return 'Carregando...';
         var sec = Math.round((now() - self.t0) / 1000), n = self.list.length;
-        return 'Conectando' + (sec >= 2 ? ' · ' + sec + ' s' : '...') + (n > 1 && (self.idx > 0 || sec >= 4) ? ' · tentativa ' + (self.idx + 1) + ' de ' + n : '');
+        return 'Conectando' + (sec >= 2 ? ' · ' + sec + ' s' : '...') + (n > 1 && (self.idx > 0 || sec >= 4) ? ' · tentativa ' + (self.idx + 1) + ' de ' + n : '') + (sec >= 4 && self.list[self.idx] && !ANDROID ? ' · ' + (self.list[self.idx].eng === 'av' ? 'AVPlay' : 'HTML5') : '');
       };
       if (S.mode === 'full') {
         hide($('pv-msg'));
@@ -1098,6 +1123,7 @@
       clearTimeout(this.loadT);
       if (this.t0 && S.cur && S.cur.type === 'live' && this.list[this.idx]) { this.note(this.list[this.idx].key, 30000); this.t0 = 0; }
       var c = S.cur;
+      if (c && c.type !== 'live' && !this.t0 && this.recover(c)) return;
       if (c && this.lastC === c && this.idx + 1 < this.list.length) { this.play(c, this.idx + 1); return; } // próxima tentativa
       this.loadingUI(false);
       this.stop(true); this.active = false;
@@ -1835,7 +1861,7 @@
   }
 
   function startLoad(force) {
-    S.pref = load('nx_pref_' + S.activeId, null);
+    S.pref = load('nx_pref2_' + S.activeId, null);
     Player.stop(); S.cur = null; S.live = null; clearInterval(epgT); pendingCache = null; clearTimeout(cacheT);
     var L = activeList();
     if (!L) { openSettings(); return; }
@@ -2134,7 +2160,7 @@
     else if (a === 'pin') changePin();
     else if (a === 'engine') {
       S.engine = S.engine === 'avplay' ? 'html5' : 'avplay'; save('nx_engine', S.engine);
-      S.pref = null; S.pstat = null; for (var z = 0; z < S.lists.length; z++) { try { localStorage.removeItem('nx_pref_' + S.lists[z].id); localStorage.removeItem('nx_pstat_' + S.lists[z].id); } catch (e) {} }
+      S.pref = null; S.pstat = null; for (var z = 0; z < S.lists.length; z++) { try { localStorage.removeItem('nx_pref2_' + S.lists[z].id); localStorage.removeItem('nx_pst2_' + S.lists[z].id); } catch (e) {} }
       toast(S.engine === 'avplay' ? 'Player Samsung (AVPlay)' : 'Player padrão (HTML5)');
       var kp = S.formIdx; openSettings(); S.formIdx = kp; formFocus('settings');
     }
