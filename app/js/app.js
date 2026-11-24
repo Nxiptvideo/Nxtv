@@ -3,7 +3,7 @@
   'use strict';
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid;
-  var APP_VER = '1.0.1';
+  var APP_VER = '1.0.2';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   var ICONS = {};
   function openFullLive() {}
@@ -327,14 +327,15 @@
       d = null;
       buildFav(); buildRecent();
       openMain(true);
-      Cat.start();
+      Cat.armed = true; // o catálogo de filmes e séries só é baixado quando você abre Filmes, Séries ou Pesquisa
       if (cacheKey && cacheOn()) { pendingCache = { key: cacheKey, url: cr.base + '|' + cr.u + '|' + cr.p, text: cacheTxt }; saveCacheLater(); }
     }, 30);
   }
   var CAT_FRESH = 12 * 3600 * 1000, CAT_MAX = 7 * 24 * 3600 * 1000;
   var Cat = {
     st: {}, gen: 0, force: false, waiters: [],
-    reset: function () { Cat.gen++; Cat.st = {}; Cat.waiters = []; },
+    reset: function () { Cat.gen++; Cat.st = {}; Cat.waiters = []; Cat.armed = false; },
+    maybeStart: function () { if (Cat.armed && (S.sec === 'movie' || S.sec === 'series' || S.sec === 'search')) { Cat.armed = false; Cat.start(); } },
     busy: function () { return Cat.st.movie === 'loading' || Cat.st.series === 'loading'; },
     whenDone: function (fn) { if (Cat.busy()) Cat.waiters.push(fn); else fn(); },
     fire: function () { if (Cat.busy()) return; var w = Cat.waiters; Cat.waiters = []; for (var i = 0; i < w.length; i++) { try { w[i](); } catch (e) {} } },
@@ -365,7 +366,7 @@
             Cat.apply(kind, data); data = null;
             fin(true);
             // salvo há mais de 12 h: atualiza em segundo plano para a próxima vez
-            if (age > CAT_FRESH) setTimeout(function () { if (g === Cat.gen) Cat.fetch(kind, cr, sig, g, false, function () {}); }, 20000);
+            if (age > CAT_FRESH) setTimeout(function () { if (g === Cat.gen && !Player.active) Cat.fetch(kind, cr, sig, g, false, function () {}); }, 20000);
           };
           fr.onerror = function () { Cat.fetch(kind, cr, sig, g, true, fin); };
           fr.readAsText(rec.blob);
@@ -644,6 +645,7 @@
   }
   function bgLoadAll() {
     if (S.bg && (S.bg.running || S.bg.finished || S.bg.wait)) return;
+    Cat.maybeStart();
     if (Cat.busy()) { S.bg = { wait: true }; Cat.whenDone(function () { S.bg = null; if (S.sec === 'search' && S.query) bgLoadAll(); }); return; }
     var q = [], i, gm = S.groups.movie || [], gs = S.groups.series || [];
     for (i = 0; i < gm.length; i++) if (!gm[i].items && (S.unlocked || !gm[i].adult)) q.push(gm[i]);
@@ -1248,6 +1250,7 @@
   function renderAll() {
     if (S.mode !== 'main') return;
     clearTimeout(renderAllT); renderAllT = null;
+    Cat.maybeStart();
     renderTop(); renderTabs(); renderView();
   }
   function renderLater() { if (!renderAllT) renderAllT = setTimeout(renderAll, 120); }
