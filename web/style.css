@@ -56,9 +56,9 @@ header{position:relative;z-index:1;height:110px;display:flex;align-items:center;
 .cols{position:relative;z-index:1;display:flex;height:970px;padding:20px 30px 30px}
 .col{background:#0d1f4ae6;border-radius:20px;padding:18px 0;margin-right:20px;position:relative;overflow:hidden;border:2px solid #1d3770}
 .col h2{font-size:26px;color:#8ea3cc;padding:0 24px 12px;text-transform:uppercase;letter-spacing:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#nav{width:290px;padding-top:24px}
-#cats{width:420px}
-#items{width:610px}
+#nav{width:250px;padding-top:24px;transition:width .2s}
+#cats{width:380px;transition:width .2s}
+#items{flex:1;min-width:0}
 .col ul{list-style:none}
 .col li{height:66px;line-height:66px;padding:0 22px;font-size:29px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:8px solid transparent;color:#d6e0f5}
 .col li .c{color:#6f86b5;font-size:24px}
@@ -81,9 +81,8 @@ header{position:relative;z-index:1;height:110px;display:flex;align-items:center;
 #item-count{position:absolute;bottom:12px;right:22px;font-size:22px;color:#6f86b5}
 .empty{color:#6f86b5!important;white-space:normal!important;line-height:40px!important;height:auto!important;padding-top:14px!important}
 
-#side{flex:1;display:flex;flex-direction:column;position:relative}
+#side{flex:0 0 480px;width:480px;display:flex;flex-direction:column;position:relative}
 .panel{background:#0d1f4ae6;border-radius:20px;border:2px solid #1d3770}
-body.livesec #items{width:auto;flex:1;min-width:0}
 body.livesec #side{flex:0 0 432px;width:432px}
 #preview{height:338px;border-radius:18px;border:4px solid #ff7a00;background:#000;position:relative;overflow:hidden}
 body.livepanel.playing #preview{background:transparent}
@@ -250,3 +249,10 @@ label{display:block;font-size:26px;color:#8ea3cc;margin:18px 0 10px}
 #det-btns{display:flex;gap:24px;margin-top:26px;flex-shrink:0}
 #det-btns .ask-btn{width:auto;min-width:320px;padding:22px 44px;text-align:center}
 .det-help{margin-top:18px;font-size:22px;color:#6f86b5;flex-shrink:0}
+
+body[data-z=nav] #nav{width:330px}
+body[data-z=nav] #cats{width:420px}
+body[data-z=cats] #cats{width:640px}
+@keyframes nxmq{0%,15%{transform:translateX(0)}85%,100%{transform:translateX(var(--d))}}
+.mq{display:inline-block;white-space:nowrap;animation-name:nxmq;animation-timing-function:linear;animation-iteration-count:infinite}
+.mqon{text-overflow:clip!important}

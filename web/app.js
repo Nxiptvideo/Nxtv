@@ -9,7 +9,7 @@
     PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, FF: 417, RW: 412, DONE: 65376, CANCEL: 65385, PGUP: 33, PGDN: 34, MENU: 1082 };
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid || /android=1/.test(location.search);
-  var APP_VER = '5.1.2';
+  var APP_VER = '5.1.3';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   function bridge(fn) { try { if (window.NxAndroid && NxAndroid[fn]) NxAndroid[fn](); } catch (e) {} }
   function focusIn(el) { el.focus(); if (ANDROID) bridge('showKeyboard'); }
@@ -1529,7 +1529,7 @@
     var h = '';
     for (var i = 0; i < NAV.length; i++) h += '<li class="' + (i === S.navIdx ? 'sel' : '') + '">' + ic(NAV[i].ic) + esc(NAV[i].label) + '</li>';
     $('nav-list').innerHTML = h;
-    $('nav').className = 'col' + (S.zone === 'nav' ? ' active' : '');
+    $('nav').className = 'col' + (S.zone === 'nav' ? ' active' : ''); zoneMark();
   }
   function renderCats() {
     var h = '', i, st;
@@ -1549,7 +1549,24 @@
       $('cats-title').innerHTML = esc(S.sec === 'search' && S.query ? '"' + S.query + '"' : SEC_TITLE[S.sec]);
     }
     $('cat-list').innerHTML = h;
-    $('cats').className = 'col' + (S.zone === 'cats' ? ' active' : '');
+    $('cats').className = 'col' + (S.zone === 'cats' ? ' active' : ''); zoneMark();
+  }
+  /* ---- coluna em uso fica mais larga; nome comprido do item escolhido corre na linha ---- */
+  var mqT, lastZ = '';
+  function zoneMark() {
+    var z = S.zone === 'nav' || S.zone === 'cats' ? S.zone : 'items';
+    if (z !== lastZ) { lastZ = z; document.body.setAttribute('data-z', z); }
+    clearTimeout(mqT); mqT = setTimeout(marquee, 280);
+  }
+  function marquee() {
+    var col = document.querySelector('.col.active'); if (!col || col.id === 'nav') return;
+    var li = col.querySelector('li.sel'); if (!li || li.querySelector('.cr')) return;
+    var t = li.querySelector('.t') || li;
+    if (hasClass(t, 'two') || t.querySelector('.mq')) return;
+    var over = t.scrollWidth - t.clientWidth; if (over < 6) return;
+    var d = over + 40;
+    t.innerHTML = '<span class="mq" style="--d:-' + d + 'px;animation-duration:' + Math.max(5, Math.round(d / 55 + 3)) + 's">' + t.innerHTML + '</span>';
+    addClass(t, 'mqon');
   }
   function renderItems() {
     var items = curItems(), kind = curKind(), sel = curIdx(), h = '', st = windowStart(sel, items.length, ROWS), i, c, s;
@@ -1590,7 +1607,7 @@
     var title = S.ep ? S.series[S.ep.s].name + ' · ' + seasonName(seasonsOf(S.ep.s)[S.ep.si].se) : (g ? g.name : '');
     $('items-title').innerHTML = esc(title);
     $('item-count').innerHTML = items.length ? (sel + 1) + ' / ' + items.length : '';
-    $('items').className = 'col' + (S.zone === 'items' ? ' active' : '');
+    $('items').className = 'col' + (S.zone === 'items' ? ' active' : ''); zoneMark();
   }
   function epTitle(c, ser, i) {
     var t = c.name;
