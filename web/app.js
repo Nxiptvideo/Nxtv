@@ -9,7 +9,7 @@
     PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, FF: 417, RW: 412, DONE: 65376, CANCEL: 65385, PGUP: 33, PGDN: 34, MENU: 1082 };
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid || /android=1/.test(location.search);
-  var APP_VER = '5.1.3';
+  var APP_VER = '5.1.4';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   function bridge(fn) { try { if (window.NxAndroid && NxAndroid[fn]) NxAndroid[fn](); } catch (e) {} }
   function focusIn(el) { el.focus(); if (ANDROID) bridge('showKeyboard'); }
@@ -409,7 +409,7 @@
       d = null;
       buildFav(); buildRecent();
       openMain(true);
-      Cat.start();
+      Cat.armed = true; // o catálogo de filmes e séries só é baixado quando você abre Filmes, Séries ou Pesquisa
       if (cacheKey && cacheOn()) { pendingCache = { key: cacheKey, url: cr.base + '|' + cr.u + '|' + cr.p, text: cacheTxt }; saveCacheLater(); }
     }, 30);
   }
@@ -420,7 +420,8 @@
   var CAT_FRESH = 12 * 3600 * 1000, CAT_MAX = 7 * 24 * 3600 * 1000;
   var Cat = {
     st: {}, gen: 0, force: false, waiters: [],
-    reset: function () { Cat.gen++; Cat.st = {}; Cat.waiters = []; },
+    reset: function () { Cat.gen++; Cat.st = {}; Cat.waiters = []; Cat.armed = false; },
+    maybeStart: function () { if (Cat.armed && (S.sec === 'movie' || S.sec === 'series' || S.sec === 'search')) { Cat.armed = false; Cat.start(); } },
     busy: function () { return Cat.st.movie === 'loading' || Cat.st.series === 'loading'; },
     whenDone: function (fn) { if (Cat.busy()) Cat.waiters.push(fn); else fn(); },
     fire: function () { if (Cat.busy()) return; var w = Cat.waiters; Cat.waiters = []; for (var i = 0; i < w.length; i++) { try { w[i](); } catch (e) {} } },
@@ -451,7 +452,7 @@
             Cat.apply(kind, data); data = null;
             fin(true);
             // salvo há mais de 12 h: atualiza em segundo plano para a próxima vez
-            if (age > CAT_FRESH) setTimeout(function () { if (g === Cat.gen) Cat.fetch(kind, cr, sig, g, false, function () {}); }, 20000);
+            if (age > CAT_FRESH) setTimeout(function () { if (g === Cat.gen && !Player.active) Cat.fetch(kind, cr, sig, g, false, function () {}); }, 20000);
           };
           fr.onerror = function () { Cat.fetch(kind, cr, sig, g, true, fin); };
           fr.readAsText(rec.blob);
@@ -842,6 +843,7 @@
   // pesquisa em filmes/séries de servidor Xtream: carrega as categorias aos poucos
   function bgLoadAll() {
     if (S.bg && (S.bg.running || S.bg.finished || S.bg.wait)) return;
+    Cat.maybeStart();
     if (Cat.busy()) { S.bg = { wait: true }; Cat.whenDone(function () { S.bg = null; if (S.sec === 'search' && S.query) bgLoadAll(); }); return; }
     var q = [], i, gm = S.groups.movie || [], gs = S.groups.series || [];
     for (i = 0; i < gm.length; i++) if (!gm[i].items && (S.unlocked || !gm[i].adult)) q.push(gm[i]);
@@ -1750,7 +1752,7 @@
     setClass($('search'), 'focus', S.zone === 'header' && S.hd === 0);
     setClass($('gear'), 'focus', S.zone === 'header' && S.hd === 1);
   }
-  function renderAll() { renderHeader(); renderNav(); renderCats(); renderItems(); renderSide(); }
+  function renderAll() { Cat.maybeStart(); renderHeader(); renderNav(); renderCats(); renderItems(); renderSide(); }
   function clock() { var d = new Date(); $('clock').innerHTML = pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
 
   /* ================= telas ================= */
