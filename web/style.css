@@ -56,8 +56,8 @@ header{position:relative;z-index:1;height:110px;display:flex;align-items:center;
 .cols{position:relative;z-index:1;display:flex;height:970px;padding:20px 30px 30px}
 .col{background:#0d1f4ae6;border-radius:20px;padding:18px 0;margin-right:20px;position:relative;overflow:hidden;border:2px solid #1d3770}
 .col h2{font-size:26px;color:#8ea3cc;padding:0 24px 12px;text-transform:uppercase;letter-spacing:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#nav{width:250px;padding-top:24px}
-#cats{width:340px}
+#nav{width:290px;padding-top:24px}
+#cats{width:420px}
 #items{width:610px}
 .col ul{list-style:none}
 .col li{height:66px;line-height:66px;padding:0 22px;font-size:29px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:8px solid transparent;color:#d6e0f5}
@@ -83,7 +83,8 @@ header{position:relative;z-index:1;height:110px;display:flex;align-items:center;
 
 #side{flex:1;display:flex;flex-direction:column;position:relative}
 .panel{background:#0d1f4ae6;border-radius:20px;border:2px solid #1d3770}
-body.livesec #items{width:778px}
+body.livesec #items{width:auto;flex:1;min-width:0}
+body.livesec #side{flex:0 0 432px;width:432px}
 #preview{height:338px;border-radius:18px;border:4px solid #ff7a00;background:#000;position:relative;overflow:hidden}
 body.livepanel.playing #preview{background:transparent}
 #preview{width:432px;height:243px;margin:0 auto;flex-shrink:0}
