@@ -1,0 +1,45 @@
+<div id="app">
+  <header id="top">
+    <div id="logo"><span class="lg-n">N</span><span class="lg-x">x</span><span class="lg-t">Tv</span></div>
+    <div id="top-title"></div>
+    <div id="search-box" class="hidden"><input id="search-in" type="search" placeholder="Canal, filme ou série" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>
+    <button id="btn-search" class="ibtn" aria-label="Pesquisar"></button>
+    <button id="btn-gear" class="ibtn" aria-label="Configurações"></button>
+  </header>
+
+  <div id="player" class="hidden">
+    <video id="v" playsinline webkit-playsinline preload="auto"></video>
+    <div id="pl-load" class="hidden"><div class="spin"></div></div>
+    <div id="pl-msg" class="hidden"></div>
+    <div id="pl-ui">
+      <div class="pl-top"><button id="pl-close" class="pbtn" aria-label="Fechar"></button><div id="pl-name"></div><button id="pl-fs" class="pbtn" aria-label="Tela cheia"></button></div>
+      <div class="pl-mid">
+        <button id="pl-prev" class="pbtn big" aria-label="Anterior"></button>
+        <button id="pl-back10" class="pbtn big vodonly" aria-label="Voltar 10 segundos"></button>
+        <button id="pl-pp" class="pbtn huge" aria-label="Pausar"></button>
+        <button id="pl-fwd10" class="pbtn big vodonly" aria-label="Avançar 10 segundos"></button>
+        <button id="pl-next" class="pbtn big" aria-label="Próximo"></button>
+      </div>
+      <div class="pl-bot vodonly"><span id="pl-cur">0:00</span><input id="pl-seek" type="range" min="0" max="1000" value="0"><span id="pl-dur">0:00</span></div>
+    </div>
+  </div>
+  <div id="now" class="hidden"></div>
+
+  <main id="view"></main>
+
+  <nav id="tabs"></nav>
+</div>
+
+<div id="page" class="hidden"><div id="page-in"></div></div>
+<div id="sheet" class="hidden"><div class="sh-bg"></div><div class="sh-box"><div class="sh-head"><span id="sh-title"></span><button id="sh-close" class="ibtn" aria-label="Fechar"></button></div><input id="sh-filter" type="search" placeholder="Filtrar" autocomplete="off"><div id="sh-list"></div></div></div>
+
+<div id="splash">
+  <div class="sp-logo"><span class="lg-n">N</span><span class="lg-x">x</span><span class="lg-t">Tv</span></div>
+  <div id="sp-spin" class="spin"></div>
+  <div id="sp-title">Iniciando...</div>
+  <div id="sp-sub"></div>
+  <div id="sp-bar"><div id="sp-fill"></div></div>
+  <div id="sp-btns" class="hidden"><button id="sp-retry" class="btn pri">Tentar de novo</button><button id="sp-cfg" class="btn">Configurações</button></div>
+</div>
+<div id="dlg" class="hidden"><div class="dlg-box"><h3 id="dlg-title"></h3><p id="dlg-sub"></p><div id="dlg-body"></div><div id="dlg-btns"></div></div></div>
+<div id="toast" class="hidden"></div>
