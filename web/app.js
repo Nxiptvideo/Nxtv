@@ -9,7 +9,7 @@
     PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, FF: 417, RW: 412, DONE: 65376, CANCEL: 65385, PGUP: 33, PGDN: 34, MENU: 1082 };
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid || /android=1/.test(location.search);
-  var APP_VER = '5.1.5';
+  var APP_VER = '5.1.6';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   function bridge(fn) { try { if (window.NxAndroid && NxAndroid[fn]) NxAndroid[fn](); } catch (e) {} }
   function focusIn(el) { el.focus(); if (ANDROID) bridge('showKeyboard'); }
@@ -976,8 +976,7 @@
       if (!this.av) engs = ['vid'];
       if (c.type === 'live' && this.altUrl(c.url)) urls.push(this.altUrl(c.url));
       for (i = 0; i < engs.length; i++) for (j = 0; j < urls.length; j++) out.push({ eng: engs[i], url: urls[j], key: engs[i] + '|' + j });
-      var pref = c.type === 'live' ? S.pref : null;
-      if (pref) for (i = 0; i < out.length; i++) if (out[i].key === pref) { out.unshift(out.splice(i, 1)[0]); break; }
+      if (c.type === 'live') return this.byStats(out);
       return out;
     },
     attemptsDroid: function (c) {
@@ -990,13 +989,26 @@
         if (ts && hasT) out.push({ eng: 'ts', url: ts, key: 'ts' });
         if (m3) out.push({ eng: 'vid', url: m3, key: 'vid|m3u8' });
         if (!out.length) out.push({ eng: 'vid', url: u, key: 'vid|raw' });
-        if (S.pref) for (i = 0; i < out.length; i++) if (out[i].key === S.pref) { out.unshift(out.splice(i, 1)[0]); break; }
+        out = this.byStats(out);
       } else {
         if (isM3 && hasH) out.push({ eng: 'hls', url: u, key: 'hls' });
         else if (isTs && hasT) out.push({ eng: 'ts', url: u, key: 'ts' });
         out.push({ eng: 'vid', url: u, key: 'vid' });
       }
       return out;
+    },
+    // tempo médio que cada forma de tocar levou para começar (por lista); a mais rápida vai primeiro
+    stats: function () { if (!S.pstat || S.pstatId !== S.activeId) { S.pstat = load('nx_pstat_' + S.activeId, {}) || {}; S.pstatId = S.activeId; } return S.pstat; },
+    byStats: function (out) {
+      var st = this.stats(), pref = S.pref, i;
+      for (i = 0; i < out.length; i++) { var v = st[out[i].key]; out[i].est = v !== undefined ? v : (out[i].key === pref ? 3000 : 4500 + i * 10); }
+      out.sort(function (a, b) { return a.est - b.est; });
+      return out;
+    },
+    note: function (key, ms) {
+      var st = this.stats(), o = st[key];
+      st[key] = Math.round(o === undefined ? ms : o * 0.6 + ms * 0.4);
+      save('nx_pstat_' + S.activeId, st);
     },
     play: function (c, step) {
       var self = this, vod = c.type !== 'live';
@@ -1010,11 +1022,14 @@
       if (!vod) { var changed = S.live !== c; S.live = c; save('nx_last', c.url); if (changed || !$('epg').innerHTML) loadEpg(); }
       addClass(document.body, 'playing');
       pvMsg('');
+      this.t0 = now();
       this.loadingUI(true);
       clearTimeout(this.loadT);
-      this.loadT = setTimeout(function () { if (g === self.gen) self.fail(); }, vod ? 40000 : (self.idx + 1 < self.list.length ? 8000 : 15000));
+      this.t0 = now();
+      this.loadT = setTimeout(function () { if (g === self.gen) { if (!vod) self.note(at.key, 30000); self.fail(); } }, vod ? 40000 : (self.idx + 1 < self.list.length ? 12000 : 20000));
       var ok = function () {
         if (g !== self.gen) return;
+        if (self.t0) { if (!vod) self.note(at.key, now() - self.t0); self.t0 = 0; }
         clearTimeout(self.loadT); self.loadingUI(false);
         if (!vod && S.pref !== at.key) { S.pref = at.key; save('nx_pref_' + S.activeId, at.key); }
       };
@@ -1022,7 +1037,7 @@
         var av = this.av;
         try {
           av.open(at.url);
-          if (!vod) { try { av.setBufferingParam('PLAYER_BUFFER_FOR_PLAY', 'PLAYER_BUFFER_SIZE_IN_SECOND', 4); av.setBufferingParam('PLAYER_BUFFER_FOR_RESUME', 'PLAYER_BUFFER_SIZE_IN_SECOND', 4); } catch (e) {} }
+          if (!vod) { try { av.setBufferingParam('PLAYER_BUFFER_FOR_PLAY', 'PLAYER_BUFFER_SIZE_IN_SECOND', 4); } catch (e) {} }
           av.setListener({
             onbufferingstart: function () { if (g === self.gen) self.loadingUI(true); },
             onbufferingcomplete: function () { if (g === self.gen) ok(); },
@@ -1063,11 +1078,25 @@
       renderNow(); if (S.mode === 'main') renderItems();
     },
     loadingUI: function (on) {
-      if (S.mode === 'full') { hide($('pv-msg')); if (on) show($('fs-load')); else hide($('fs-load')); }
-      else pvMsg(on ? 'Carregando...' : '');
+      var self = this;
+      clearInterval(this.ldT);
+      var txt = function () {
+        if (!self.t0) return 'Carregando...';
+        var sec = Math.round((now() - self.t0) / 1000), n = self.list.length;
+        return 'Conectando' + (sec >= 2 ? ' · ' + sec + ' s' : '...') + (n > 1 && (self.idx > 0 || sec >= 4) ? ' · tentativa ' + (self.idx + 1) + ' de ' + n : '');
+      };
+      if (S.mode === 'full') {
+        hide($('pv-msg'));
+        if (on) { show($('fs-load')); $('fs-load-t').innerHTML = txt(); this.ldT = setInterval(function () { $('fs-load-t').innerHTML = txt(); }, 1000); }
+        else hide($('fs-load'));
+      } else {
+        pvMsg(on ? txt() : '');
+        if (on) this.ldT = setInterval(function () { if (S.mode !== 'full') pvMsg(txt()); }, 1000);
+      }
     },
     fail: function () {
       clearTimeout(this.loadT);
+      if (this.t0 && S.cur && S.cur.type === 'live' && this.list[this.idx]) { this.note(this.list[this.idx].key, 30000); this.t0 = 0; }
       var c = S.cur;
       if (c && this.lastC === c && this.idx + 1 < this.list.length) { this.play(c, this.idx + 1); return; } // próxima tentativa
       this.loadingUI(false);
@@ -1081,6 +1110,7 @@
     },
     hideVid: function () { var v = this.vid; if (v) { v.style.display = 'none'; } },
     stop: function (keepState) {
+      clearInterval(this.ldT); this.t0 = 0;
       clearTimeout(this.loadT);
       if (this.av) { try { this.av.stop(); } catch (e) {} try { this.av.close(); } catch (e) {} }
       if (this.hls) { try { this.hls.destroy(); } catch (e) {} this.hls = null; }
@@ -2104,7 +2134,7 @@
     else if (a === 'pin') changePin();
     else if (a === 'engine') {
       S.engine = S.engine === 'avplay' ? 'html5' : 'avplay'; save('nx_engine', S.engine);
-      S.pref = null; for (var z = 0; z < S.lists.length; z++) { try { localStorage.removeItem('nx_pref_' + S.lists[z].id); } catch (e) {} }
+      S.pref = null; S.pstat = null; for (var z = 0; z < S.lists.length; z++) { try { localStorage.removeItem('nx_pref_' + S.lists[z].id); localStorage.removeItem('nx_pstat_' + S.lists[z].id); } catch (e) {} }
       toast(S.engine === 'avplay' ? 'Player Samsung (AVPlay)' : 'Player padrão (HTML5)');
       var kp = S.formIdx; openSettings(); S.formIdx = kp; formFocus('settings');
     }

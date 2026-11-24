@@ -149,7 +149,8 @@ label{display:block;font-size:26px;color:#8ea3cc;margin:18px 0 10px}
 #vod-time{font-weight:bold;margin-right:30px}
 #vod-state{color:#ffa23d;font-weight:bold;flex:1}
 .vod-help{color:#8ea3cc;font-size:24px}
-#fs-load{position:absolute;left:0;top:0;width:1920px;height:1080px;z-index:4;display:flex;align-items:center;justify-content:center}
+#fs-load{position:absolute;left:0;top:0;width:1920px;height:1080px;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#fs-load-t{margin-top:26px;font-size:30px;color:#cfdaf3;text-shadow:0 2px 6px #000}
 #numbox{position:absolute;top:140px;right:80px;z-index:6;font-size:90px;font-weight:bold;background:#071430ee;padding:10px 40px;border-radius:20px;color:#ff7a00;border:4px solid #ff7a00}
 #toast{position:absolute;bottom:60px;left:50%;width:1000px;margin-left:-500px;z-index:9;text-align:center;font-size:32px;background:#ff7a00;color:#fff;font-weight:bold;padding:22px;border-radius:16px}
 
