@@ -9,7 +9,7 @@
     PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, FF: 417, RW: 412, DONE: 65376, CANCEL: 65385, PGUP: 33, PGDN: 34, MENU: 1082 };
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid || /android=1/.test(location.search);
-  var APP_VER = '5.1.7';
+  var APP_VER = '5.2.0';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   function bridge(fn) { try { if (window.NxAndroid && NxAndroid[fn]) NxAndroid[fn](); } catch (e) {} }
   function focusIn(el) { el.focus(); if (ANDROID) bridge('showKeyboard'); }
@@ -938,6 +938,120 @@
     var m = $('pv-msg');
     if (t && S.mode === 'main' && Player.active) { m.innerHTML = t; show(m); } else hide(m);
   }
+  /* ================= antitravamento =================
+     Vigia o vídeo depois que ele começa: se a imagem parar (posição não anda) ou o carregamento
+     ficar preso, reconecta sozinho. Alterna player/formato se o mesmo travar de novo, volta ao
+     ponto certo em filmes e episódios, espera a internet voltar e limpa dados velhos da memória. */
+  var AT_CFG = {
+    normal: { liveFreeze: 10000, vodFreeze: 20000, liveBuf: 15000, vodBuf: 30000, max: 6, drift: 25, avLive: [4, 6], avVod: [0, 0], hlsLive: 20, sync: 2 },
+    forte: { liveFreeze: 7000, vodFreeze: 15000, liveBuf: 12000, vodBuf: 25000, max: 12, drift: 15, avLive: [8, 10], avVod: [6, 12], hlsLive: 40, sync: 3 },
+    off: { avLive: [4, 0], avVod: [0, 0], hlsLive: 20, sync: 2 }
+  };
+  var Guard = {
+    t: null, rt: null, g: -1, c: null, last: -1, lastAt: 0, bufAt: 0, moved: false, n: 0, rcUrl: null, okUrl: null, recAt: 0, offline: false,
+    cfg: function () { return AT_CFG[S.anti] || AT_CFG.normal; },
+    on: function () { return S.anti !== 'off'; },
+    reset: function (c) { this.n = 0; this.rcUrl = c ? c.url : null; this.okUrl = null; },
+    stop: function () { clearInterval(this.t); this.t = null; clearTimeout(this.rt); this.rt = null; },
+    // vídeo começou (ou voltou do carregamento)
+    ok: function (g, c) {
+      this.okUrl = c.url; this.bufAt = 0; this.lastAt = now();
+      if (this.g === g && this.t) return;
+      this.stop(); this.g = g; this.c = c; this.last = -1; this.moved = false;
+      if (!this.on()) return;
+      var self = this; this.t = setInterval(function () { self.tick(); }, 2000);
+    },
+    buf: function (g, on) {
+      if (g !== this.g) return;
+      if (on) { if (!this.bufAt) this.bufAt = now(); } else { this.bufAt = 0; this.lastAt = now(); }
+    },
+    tick: function () {
+      var t = now(), c = this.c, cf = this.cfg();
+      if (this.g !== Player.gen || !Player.active || !c) { this.stop(); return; }
+      if (document.hidden || this.offline) { this.lastAt = t; return; }
+      var vod = c.type !== 'live';
+      if (vod && Player.isPaused()) { this.lastAt = t; this.bufAt = 0; return; }
+      var pos = Player.times()[0];
+      if (pos !== this.last) {
+        if (this.last >= 0) this.moved = true;
+        this.last = pos; this.lastAt = t;
+        if (this.n && t - this.recAt > 60000) this.n = 0; // 1 min sem travar: zera o contador
+        if (!vod) this.chase(cf);
+        return;
+      }
+      var still = t - this.lastAt, bufd = this.bufAt ? t - this.bufAt : 0;
+      if ((this.moved && still >= (vod ? cf.vodFreeze : cf.liveFreeze)) || bufd >= (vod ? cf.vodBuf : cf.liveBuf)) this.rescue();
+    },
+    // ao vivo no player HTML5: se ficou muito atrasado em relação à transmissão, pula para o ao vivo
+    chase: function (cf) {
+      var at = Player.list[Player.idx];
+      if (Player.cur === 'av' || Player.cur === 'ts' || !at || !/\.m3u8(\?|$)/i.test(at.url)) return;
+      try {
+        var v = Player.vid, b = v.buffered;
+        if (b && b.length) { var end = b.end(b.length - 1); if (end - v.currentTime > cf.drift) v.currentTime = Math.max(0, end - 3); }
+      } catch (e) {}
+    },
+    rescue: function () {
+      var c = this.c, cf = this.cfg(), vod = c.type !== 'live', at = Player.list[Player.idx];
+      this.stop();
+      if (this.rcUrl !== c.url) { this.rcUrl = c.url; this.n = 0; }
+      this.n++; this.recAt = now();
+      if (this.n > cf.max) { Player.stop(true); this.say(vod ? 'O vídeo parou de responder' : 'O canal parou de responder'); toast('Não foi possível recuperar. Tente de novo ou escolha outro.', 5000); return; }
+      if (!vod && at) Player.note(at.key, 20000); // a forma que travou perde prioridade
+      var step = Player.idx;
+      if (this.n % 2 === 0 && Player.list.length > 1) step = (Player.idx + 1) % Player.list.length; // travou de novo: troca player/formato
+      Player.reco = this.n;
+      if (vod) {
+        var p = this.last > 5000 ? this.last : (Player.lastPos || 0);
+        toast('O vídeo travou · reconectando...', 3000);
+        Player.play(c, step); if (p > 5000) Res.seekWhenReady(c, p);
+      } else {
+        toast('Sinal travou · reconectando (' + this.n + '/' + cf.max + ')', 3000);
+        Player.play(c, step);
+      }
+    },
+    // canal que estava funcionando e caiu de vez: tenta de novo com intervalo crescente
+    retry: function (c) {
+      if (!this.on() || !c || c.type !== 'live' || this.okUrl !== c.url) return false;
+      var cf = this.cfg();
+      if (this.offline) { Player.loadingUI(false); Player.stop(true); this.say('Sem internet · aguardando a conexão voltar'); return true; }
+      if (this.rcUrl !== c.url) { this.rcUrl = c.url; this.n = 0; }
+      if (++this.n > cf.max) return false;
+      var wait = Math.min(15000, 2000 * this.n), g = Player.gen, self = this;
+      Player.loadingUI(false); Player.stop(true);
+      this.say('Sinal caiu · reconectando em ' + Math.round(wait / 1000) + ' s (' + this.n + '/' + cf.max + ')');
+      this.rt = setTimeout(function () {
+        self.rt = null;
+        if (Player.gen !== g || S.cur !== c || (S.mode !== 'main' && S.mode !== 'full')) return;
+        Player.reco = self.n; Player.play(c, 0);
+      }, wait);
+      return true;
+    },
+    say: function (t) {
+      if (S.mode === 'full') { show($('fs-load')); $('fs-load-t').innerHTML = esc(t); }
+      else $('preview-msg').innerHTML = esc(t);
+    },
+    // internet caiu/voltou
+    net: function (up) {
+      if (!up) { if (!this.offline) { this.offline = true; if (Player.active || this.rt) toast('Sem internet · aguardando a conexão voltar', 5000); } return; }
+      if (!this.offline) return;
+      this.offline = false;
+      var c = S.cur;
+      if (!c || (S.mode !== 'full' && !(S.mode === 'main' && c.type === 'live'))) return;
+      if (!Player.active && this.okUrl !== c.url && !this.rt) return;
+      toast('Internet voltou · reconectando', 3000);
+      this.stop();
+      var p = c.type !== 'live' ? (this.last > 5000 ? this.last : Player.lastPos || 0) : 0;
+      Player.reco = 1; Player.play(c, 0);
+      if (p > 5000) Res.seekWhenReady(c, p);
+    },
+    // limpeza leve da memória (programação antiga guardada)
+    clean: function () {
+      var t = now(), k;
+      for (k in S.epg) if (S.epg.hasOwnProperty(k) && t - S.epg[k].t > 10 * 60000) delete S.epg[k];
+    }
+  };
+
   var Player = {
     av: null, vid: null, active: false, cur: 'vid', gen: 0, loadT: null, list: [], idx: 0, lastC: null,
     findAv: function () {
@@ -1018,6 +1132,8 @@
     play: function (c, step) {
       var self = this, vod = c.type !== 'live';
       if (step === undefined || this.lastC !== c) { this.list = this.attempts(c); this.idx = 0; } else this.idx = step;
+      if (step === undefined || this.lastC !== c) { Guard.reset(c); this.reco = 0; }
+      var acf = Guard.cfg();
       if (this.lastC !== c) { this.trackPos(c); }
       this.lastC = c;
       var at = this.list[this.idx];
@@ -1038,14 +1154,18 @@
         if (self.t0) { if (!vod) self.note(at.key, now() - self.t0); self.t0 = 0; }
         clearTimeout(self.loadT); self.loadingUI(false);
         if (!vod && S.pref !== at.key) { S.pref = at.key; save('nx_pref2_' + S.activeId, at.key); }
+        if (self.reco) { self.reco = 0; toast('Reconectado', 2000); }
+        Guard.ok(g, c);
       };
       if (at.eng === 'av') {
         var av = this.av;
         try {
           av.open(at.url);
-          if (!vod) { try { av.setBufferingParam('PLAYER_BUFFER_FOR_PLAY', 'PLAYER_BUFFER_SIZE_IN_SECOND', 4); } catch (e) {} }
+          var bp = vod ? acf.avVod : acf.avLive; // buffer maior = menos travadas (o canal demora um pouco mais para abrir)
+          if (bp[0]) { try { av.setBufferingParam('PLAYER_BUFFER_FOR_PLAY', 'PLAYER_BUFFER_SIZE_IN_SECOND', bp[0]); } catch (e) {} }
+          if (bp[1]) { try { av.setBufferingParam('PLAYER_BUFFER_FOR_RESUME', 'PLAYER_BUFFER_SIZE_IN_SECOND', bp[1]); } catch (e) {} }
           av.setListener({
-            onbufferingstart: function () { if (g === self.gen) self.loadingUI(true); },
+            onbufferingstart: function () { if (g === self.gen) { self.loadingUI(true); Guard.buf(g, true); } },
             onbufferingcomplete: function () { if (g === self.gen) ok(); },
             onerror: function () { if (g === self.gen) self.fail(); },
             onstreamcompleted: function () { if (g !== self.gen) return; if (vod) { if (!self.recover(c)) vodEnded(); } else self.fail(); }
@@ -1063,16 +1183,16 @@
         this.applyRect();
         var v = this.vid;
         v.onerror = function () { if (g === self.gen) self.fail(); };
-        v.onwaiting = function () { if (g === self.gen) self.loadingUI(true); };
+        v.onwaiting = function () { if (g === self.gen) { self.loadingUI(true); Guard.buf(g, true); } };
         v.onplaying = function () { ok(); };
         v.onended = function () { if (g === self.gen && vod) { if (!self.recover(c)) vodEnded(); } };
         if (at.eng === 'hls') {
-          var hl = this.hls = new Hls({ maxBufferLength: vod ? 60 : 20, backBufferLength: 20, manifestLoadingMaxRetry: 2, levelLoadingMaxRetry: 2, startFragPrefetch: true, liveSyncDurationCount: 2, startLevel: -1 });
+          var hl = this.hls = new Hls({ maxBufferLength: vod ? 60 : acf.hlsLive, backBufferLength: 20, manifestLoadingMaxRetry: 2, levelLoadingMaxRetry: 2, fragLoadingMaxRetry: 4, startFragPrefetch: true, liveSyncDurationCount: acf.sync, startLevel: -1 });
           hl.on(Hls.Events.ERROR, function (ev, d) { if (g === self.gen && d && d.fatal) self.fail(); });
           hl.loadSource(at.url); hl.attachMedia(v);
         } else if (at.eng === 'ts') {
           var mp = this.mp = mpegts.createPlayer({ type: 'mpegts', isLive: !vod, url: at.url },
-            { enableWorker: false, enableStashBuffer: !!vod, stashInitialSize: 128 * 1024, lazyLoad: false, liveBufferLatencyChasing: !vod, autoCleanupSourceBuffer: true });
+            { enableWorker: false, enableStashBuffer: !!vod || S.anti === 'forte', stashInitialSize: 128 * 1024, lazyLoad: false, liveBufferLatencyChasing: !vod, autoCleanupSourceBuffer: true });
           mp.on(mpegts.Events.ERROR, function () { if (g === self.gen) self.fail(); });
           mp.attachMediaElement(v); mp.load();
         } else {
@@ -1108,7 +1228,7 @@
       var txt = function () {
         if (!self.t0) return 'Carregando...';
         var sec = Math.round((now() - self.t0) / 1000), n = self.list.length;
-        return 'Conectando' + (sec >= 2 ? ' · ' + sec + ' s' : '...') + (n > 1 && (self.idx > 0 || sec >= 4) ? ' · tentativa ' + (self.idx + 1) + ' de ' + n : '') + (sec >= 4 && self.list[self.idx] && !ANDROID ? ' · ' + (self.list[self.idx].eng === 'av' ? 'AVPlay' : 'HTML5') : '');
+        return (self.reco ? 'Reconectando' : 'Conectando') + (sec >= 2 ? ' · ' + sec + ' s' : '...') + (n > 1 && (self.idx > 0 || sec >= 4) ? ' · tentativa ' + (self.idx + 1) + ' de ' + n : '') + (sec >= 4 && self.list[self.idx] && !ANDROID ? ' · ' + (self.list[self.idx].eng === 'av' ? 'AVPlay' : 'HTML5') : '');
       };
       if (S.mode === 'full') {
         hide($('pv-msg'));
@@ -1125,6 +1245,7 @@
       var c = S.cur;
       if (c && c.type !== 'live' && !this.t0 && this.recover(c)) return;
       if (c && this.lastC === c && this.idx + 1 < this.list.length) { this.play(c, this.idx + 1); return; } // próxima tentativa
+      if (Guard.retry(c)) return; // canal estava funcionando e caiu: continua tentando
       this.loadingUI(false);
       this.stop(true); this.active = false;
       if (S.mode === 'main') $('preview-msg').innerHTML = 'Canal indisponível';
@@ -1136,7 +1257,7 @@
     },
     hideVid: function () { var v = this.vid; if (v) { v.style.display = 'none'; } },
     stop: function (keepState) {
-      clearInterval(this.ldT); this.t0 = 0;
+      clearInterval(this.ldT); this.t0 = 0; Guard.stop();
       clearTimeout(this.loadT);
       if (this.av) { try { this.av.stop(); } catch (e) {} try { this.av.close(); } catch (e) {} }
       if (this.hls) { try { this.hls.destroy(); } catch (e) {} this.hls = null; }
@@ -2145,6 +2266,7 @@
     h += '<li class="focusable mut" data-a="appupd"><span class="nm">Atualizar app (procurar versão nova)</span><span class="lt">VERSÃO ' + APP_VER + '</span></li>';
     h += '<li class="focusable mut" data-a="pin"><span class="nm">Senha do conteúdo adulto · alterar</span><span class="lt">' + (S.pin === '0000' ? 'padrão 0000' : '••••') + '</span></li>';
     if (!ANDROID) h += '<li class="focusable mut" data-a="engine"><span class="nm">Player de vídeo</span><span class="lt">' + (S.engine === 'avplay' ? 'SAMSUNG (AVPlay)' : 'PADRÃO (HTML5)') + '</span></li>';
+    h += '<li class="focusable mut" data-a="anti"><span class="nm">Antitravamento</span><span class="lt">' + (S.anti === 'forte' ? 'FORTE' : S.anti === 'off' ? 'DESLIGADO' : 'NORMAL') + '</span></li>';
     h += '<li class="focusable mut" data-a="order"><span class="nm">Ordem de canais, filmes e séries</span><span class="lt">' + (S.order === 'az' ? 'ALFABÉTICA' : 'IGUAL À LISTA') + '</span></li>';
     h += '<li class="focusable mut" data-a="cache"><span class="nm">Abertura rápida (lista salva na TV)</span><span class="lt">' + (cacheOn() ? 'LIGADA' : 'DESLIGADA') + '</span></li>';
     if (S.unlocked) h += '<li class="focusable mut" data-a="lock">Bloquear conteúdo adulto agora</li>';
@@ -2163,6 +2285,11 @@
       S.pref = null; S.pstat = null; for (var z = 0; z < S.lists.length; z++) { try { localStorage.removeItem('nx_pref2_' + S.lists[z].id); localStorage.removeItem('nx_pst2_' + S.lists[z].id); } catch (e) {} }
       toast(S.engine === 'avplay' ? 'Player Samsung (AVPlay)' : 'Player padrão (HTML5)');
       var kp = S.formIdx; openSettings(); S.formIdx = kp; formFocus('settings');
+    }
+    else if (a === 'anti') {
+      S.anti = S.anti === 'normal' ? 'forte' : S.anti === 'forte' ? 'off' : 'normal'; save('nx_anti', S.anti);
+      toast(S.anti === 'forte' ? 'Antitravamento FORTE: buffer maior e reconexão mais rápida (o canal demora um pouco mais para abrir)' : S.anti === 'off' ? 'Antitravamento desligado' : 'Antitravamento NORMAL', 5000);
+      var ka = S.formIdx; openSettings(); S.formIdx = ka; formFocus('settings');
     }
     else if (a === 'order') {
       S.order = S.order === 'az' ? 'list' : 'az'; save('nx_order', S.order);
@@ -2459,7 +2586,7 @@
   function init() {
     if (ANDROID && !window.Hls) { var libs = ['js/hls.min.js', 'js/mpegts.js']; for (var li = 0; li < libs.length; li++) { var sc = document.createElement('script'); sc.src = libs[li]; document.body.appendChild(sc); } }
     fillIcons(); registerKeys(); Player.init();
-    S.favs = load('nx_favs', {}); S.watched = load('nx_watched', {}); S.recent = load('nx_recent', {}); S.pin = load('nx_pin', '0000'); S.order = load('nx_order', 'list'); S.engine = load('nx_engine', 'html5');
+    S.favs = load('nx_favs', {}); S.watched = load('nx_watched', {}); S.recent = load('nx_recent', {}); S.pin = load('nx_pin', '0000'); S.order = load('nx_order', 'list'); S.engine = load('nx_engine', 'html5'); S.anti = load('nx_anti', 'normal'); if (!AT_CFG[S.anti]) S.anti = 'normal';
     loadLists();
     if (load('nx_boot', 0) || load('nx_cache_try', 0)) { // o app foi fechado no meio do carregamento da última vez
       save('nx_nocache', true);
@@ -2471,6 +2598,16 @@
     window.nxPause = function () { try { if (S.fullKind === 'vod') Res.save(S.cur); if (S.mode === 'full') closeFull(); Player.stop(); } catch (e) {} };
     document.addEventListener('visibilitychange', function () { if (document.hidden && S.fullKind === 'vod') Res.save(S.cur); });
     clock(); setInterval(clock, 20000);
+    setInterval(function () { Guard.clean(); }, 5 * 60000);
+    window.addEventListener('online', function () { Guard.net(true); });
+    window.addEventListener('offline', function () { Guard.net(false); });
+    try {
+      if (window.webapis && webapis.network && webapis.network.addNetworkStateChangeListener) webapis.network.addNetworkStateChangeListener(function (v) {
+        var N = webapis.network.NetworkState || {};
+        if (v === N.GATEWAY_DISCONNECTED || v === N.LAN_CABLE_DETACHED) Guard.net(false);
+        else if (v === N.GATEWAY_CONNECTED || v === N.LAN_CABLE_ATTACHED) Guard.net(true);
+      });
+    } catch (e) {}
     $('search-in').addEventListener('input', function () {
       var v = this.value; clearTimeout(searchT);
       searchT = setTimeout(function () { doSearch(v); }, 500);
