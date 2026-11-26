@@ -3,7 +3,7 @@
   'use strict';
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid;
-  var APP_VER = '1.0.3';
+  var APP_VER = '1.0.4';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   var ICONS = {};
   function openFullLive() {}
@@ -1332,12 +1332,24 @@
       v.onplaying = function () { ok(); uiShow(); };
       v.onended = function () { if (g === self.gen && vod) vodEnded(); };
       if (at.eng === 'hls') {
-        var hl = this.hls = new Hls({ maxBufferLength: vod ? 60 : 20, backBufferLength: 20, manifestLoadingMaxRetry: 2, levelLoadingMaxRetry: 2, startFragPrefetch: true, liveSyncDurationCount: 2 });
-        hl.on(Hls.Events.ERROR, function (ev, d) { if (g === self.gen && d && d.fatal) self.fail(); });
+        // 1.0.4: mais colchão (3 segmentos do ao vivo em vez de 2) e recuperação de erro sem reiniciar o canal
+        var hr = { net: 0, med: 0 };
+        var hl = this.hls = new Hls({ maxBufferLength: vod ? 60 : 30, maxMaxBufferLength: vod ? 120 : 60, backBufferLength: vod ? 30 : 10,
+          maxBufferHole: 1, nudgeMaxRetry: 6, manifestLoadingMaxRetry: 3, levelLoadingMaxRetry: 4, fragLoadingMaxRetry: 6, fragLoadingRetryDelay: 500,
+          startFragPrefetch: true, liveSyncDurationCount: 3, liveMaxLatencyDurationCount: 10 });
+        hl.on(Hls.Events.ERROR, function (ev, d) {
+          if (g !== self.gen || !d || !d.fatal) return;
+          var ET = Hls.ErrorTypes || {};
+          if (d.type === ET.NETWORK_ERROR && v.currentTime > 0 && hr.net++ < 3) { try { hl.startLoad(); return; } catch (e) {} }
+          if (d.type === ET.MEDIA_ERROR && hr.med++ < 2) { try { if (hr.med === 2 && hl.swapAudioCodec) hl.swapAudioCodec(); hl.recoverMediaError(); return; } catch (e) {} }
+          self.fail();
+        });
         hl.loadSource(at.url); hl.attachMedia(v);
       } else if (at.eng === 'ts') {
         var mp = this.mp = mpegts.createPlayer({ type: 'mpegts', isLive: !vod, url: at.url },
-          { enableWorker: false, enableStashBuffer: !!vod, stashInitialSize: 128 * 1024, lazyLoad: false, liveBufferLatencyChasing: !vod, autoCleanupSourceBuffer: true });
+          { enableWorker: false, enableStashBuffer: true, stashInitialSize: 384 * 1024, lazyLoad: false,
+            liveBufferLatencyChasing: !vod, liveBufferLatencyMaxLatency: 10, liveBufferLatencyMinRemain: 4, // antes perseguia 1,5 s de atraso = sem colchão = travava
+            autoCleanupSourceBuffer: true, autoCleanupMaxBackwardDuration: 30, autoCleanupMinBackwardDuration: 15 });
         mp.on(mpegts.Events.ERROR, function () { if (g === self.gen) self.fail(); });
         mp.attachMediaElement(v); mp.load();
       } else {
