@@ -9,7 +9,7 @@
     PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, FF: 417, RW: 412, DONE: 65376, CANCEL: 65385, PGUP: 33, PGDN: 34, MENU: 1082 };
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid || /android=1/.test(location.search);
-  var APP_VER = '5.2.0';
+  var APP_VER = '5.2.1';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   function bridge(fn) { try { if (window.NxAndroid && NxAndroid[fn]) NxAndroid[fn](); } catch (e) {} }
   function focusIn(el) { el.focus(); if (ANDROID) bridge('showKeyboard'); }
@@ -2266,8 +2266,8 @@
     h += '<li class="focusable mut" data-a="appupd"><span class="nm">Atualizar app (procurar versão nova)</span><span class="lt">VERSÃO ' + APP_VER + '</span></li>';
     h += '<li class="focusable mut" data-a="pin"><span class="nm">Senha do conteúdo adulto · alterar</span><span class="lt">' + (S.pin === '0000' ? 'padrão 0000' : '••••') + '</span></li>';
     if (!ANDROID) h += '<li class="focusable mut" data-a="engine"><span class="nm">Player de vídeo</span><span class="lt">' + (S.engine === 'avplay' ? 'SAMSUNG (AVPlay)' : 'PADRÃO (HTML5)') + '</span></li>';
-    h += '<li class="focusable mut" data-a="anti"><span class="nm">Antitravamento</span><span class="lt">' + (S.anti === 'forte' ? 'FORTE' : S.anti === 'off' ? 'DESLIGADO' : 'NORMAL') + '</span></li>';
     h += '<li class="focusable mut" data-a="order"><span class="nm">Ordem de canais, filmes e séries</span><span class="lt">' + (S.order === 'az' ? 'ALFABÉTICA' : 'IGUAL À LISTA') + '</span></li>';
+    h += '<li class="focusable mut" data-a="anti"><span class="nm">Antitravamento</span><span class="lt">' + (S.anti === 'forte' ? 'FORTE' : S.anti === 'off' ? 'DESLIGADO' : 'NORMAL') + '</span></li>';
     h += '<li class="focusable mut" data-a="cache"><span class="nm">Abertura rápida (lista salva na TV)</span><span class="lt">' + (cacheOn() ? 'LIGADA' : 'DESLIGADA') + '</span></li>';
     if (S.unlocked) h += '<li class="focusable mut" data-a="lock">Bloquear conteúdo adulto agora</li>';
     if (window.NX_UPD) h += '<li class="focusable mut" data-a="appreset"><span class="nm">Voltar para a versão original do app</span><span class="lt">' + (window.NX_FACTORY || '') + '</span></li>';
@@ -2586,7 +2586,7 @@
   function init() {
     if (ANDROID && !window.Hls) { var libs = ['js/hls.min.js', 'js/mpegts.js']; for (var li = 0; li < libs.length; li++) { var sc = document.createElement('script'); sc.src = libs[li]; document.body.appendChild(sc); } }
     fillIcons(); registerKeys(); Player.init();
-    S.favs = load('nx_favs', {}); S.watched = load('nx_watched', {}); S.recent = load('nx_recent', {}); S.pin = load('nx_pin', '0000'); S.order = load('nx_order', 'list'); S.engine = load('nx_engine', 'html5'); S.anti = load('nx_anti', 'normal'); if (!AT_CFG[S.anti]) S.anti = 'normal';
+    S.favs = load('nx_favs', {}); S.watched = load('nx_watched', {}); S.recent = load('nx_recent', {}); S.pin = load('nx_pin', '0000'); S.order = load('nx_order', 'list'); if (!load('nx_ordfix1', false)) { S.order = 'list'; save('nx_order', 'list'); save('nx_ordfix1', true); } // volta para a ordem da lista (1 vez) S.engine = load('nx_engine', 'html5'); S.anti = load('nx_anti', 'normal'); if (!AT_CFG[S.anti]) S.anti = 'normal';
     loadLists();
     if (load('nx_boot', 0) || load('nx_cache_try', 0)) { // o app foi fechado no meio do carregamento da última vez
       save('nx_nocache', true);

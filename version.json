@@ -1,6 +1,6 @@
 {
   "web": {
-    "ver": "5.2.0",
+    "ver": "5.2.1",
     "files": {
       "js": "web/app.js",
       "css": "web/style.css",
@@ -8,8 +8,8 @@
     }
   },
   "roku": {
-    "ver": "1.3.0",
+    "ver": "1.3.1",
     "zip": "roku/NxTvLib.zip"
   },
-  "notes": "Antitravamento: reconecta sozinho quando o vídeo congela ou a internet cai (Configurações > Antitravamento)"
+  "notes": "Canais voltam para a ordem da lista; Antitravamento fica abaixo de Ordem nas Configurações"
 }
