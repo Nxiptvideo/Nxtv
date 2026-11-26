@@ -3,7 +3,7 @@
   'use strict';
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid;
-  var APP_VER = '1.0.5';
+  var APP_VER = '1.0.6';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   var ICONS = {};
   function openFullLive() {}
@@ -46,7 +46,7 @@
 
   var toastT;
   var CACHE_TTL = 12 * 3600 * 1000; // lista salva na TV vale 12 h
-  function newPos() { return { search: { c: 0, i: 0 }, live: { c: 0, i: 0 }, movie: { c: 0, i: 0 }, series: { c: 0, i: 0 }, fav: { c: 0, i: 0 }, events: { c: 0, i: 0 } }; }
+  function newPos() { return { search: { c: 0, i: 0 }, live: { c: 0, i: 0 }, movie: { c: 0, i: 0 }, series: { c: 0, i: 0 }, marvel: { c: 0, i: 0 }, fav: { c: 0, i: 0 }, events: { c: 0, i: 0 } }; }
   var DB = {
     db: null,
     open: function (cb) {
@@ -502,14 +502,19 @@
     }
     SAGA_ANY = new RegExp(all.join('|'));
   }
-  function sagaOf(name) {
-    var t = norm(name), y = 0, m, i, j, s, head, cut, num = 1, base;
+  // nome "limpo" para comparar: minúsculo, sem acento, sem ano, [4K], dublado etc. (o ano fica em SG_Y)
+  var SG_Y = 0;
+  function sgClean(name) {
+    var t = norm(name), m; SG_Y = 0;
     if (t.indexOf('\u2013') > -1 || t.indexOf('\u2014') > -1) t = t.replace(/[\u2013\u2014]/g, '-');
-    if (HASDIG.test(t) && (m = SG_YR.exec(t))) { y = parseInt(m[1] || m[2], 10); t = t.replace(SG_YR, ' '); }
+    if (HASDIG.test(t) && (m = SG_YR.exec(t))) { SG_Y = parseInt(m[1] || m[2], 10); t = t.replace(SG_YR, ' '); }
     if (t.indexOf('|') > -1) t = t.replace(/^\|[^|]{1,6}\|\s*/, '').replace(/^[a-z0-9]{2,4}\s*\|\s*/, '');
     if (SG_HASBR.test(t)) t = t.replace(SG_BR, ' ');
     if (SG_HASTAG.test(t)) t = t.replace(SG_TAG, '$1').replace(SG_TAG, '$1');
-    t = t.replace(SG_TRIM, '').replace(SG_SP, ' ');
+    return t.replace(SG_TRIM, '').replace(SG_SP, ' ');
+  }
+  function sagaOf(name) {
+    var t = sgClean(name), y = SG_Y, m, i, j, s, head, cut, num = 1, base;
     if (!t) return null;
     if (SAGA_ANY.test(t)) for (i = 0; i < SAGAS.length; i++) {
       s = SAGAS[i]; if (!s.m.test(t)) continue;
@@ -554,6 +559,134 @@
     }
     return out;
   }
+  /* ================= Universo Marvel: filmes e séries na ordem cronológica =================
+     Procura na lista os títulos da tabela abaixo (filmes, séries e curtas) e monta uma fila única,
+     com o número de cada um na ordem da história. Séries ficam guardadas como ~índice (número negativo). */
+  var MV_TXT = [
+    "1 s olhos de wakanda|eyes of wakanda",
+    "2 m primeiro vingador|first avenger",
+    "3 ms ^(marvel )?(one.shot.{0,3})?(agente|agent) carter$|one.shot.{0,6}(agente|agent) carter",
+    "4 m ^(capita marvel|captain marvel)$",
+    "5 m ^(homem de ferro|iron man)$",
+    "6 m ^(homem de ferro|iron man) (2|ii)$",
+    "7 m incrivel hulk|incredible hulk",
+    "8 ms caminho do martelo d[eo] thor|way to thor.s hammer",
+    "9 m ^thor$",
+    "10 ms ^(o )?consultor$|^the consultant$|one.shot.{0,6}(o )?consult",
+    "11 m ^(os )?vingadores( - the avengers| the avengers)?$|^(the )?avengers$|^marvel.s the avengers$",
+    "12 ms ^item 47$|one.shot.{0,6}item 47",
+    "13 m ^thor.*(mundo sombrio|dark world)",
+    "14 m ^(homem de ferro|iron man) (3|iii)$",
+    "15 ms todos saudam o rei|all hail the king",
+    "16 m (capitao america|captain america).*(soldado invernal|winter soldier)",
+    "17 m ^(guardioes da galaxia|guardians of the galaxy)$",
+    "18 m ^(guardioes da galaxia|guardians of the galaxy).{0,6}(vol(ume)?\\.? ?)?(2|ii)\\b",
+    "19 ms eu sou groot|i am groot",
+    "20 s ^(marvel.s )?(demolidor|daredevil)$",
+    "21 s ^(marvel.s )?jessica jones$",
+    "22 m era de ultron|age of ultron",
+    "23 m ^(homem.formiga|ant.man)$",
+    "24 s ^(marvel.s )?luke cage$",
+    "25 s ^(marvel.s )?(punho de ferro|iron fist)$",
+    "26 s ^(marvel.s )?(os )?(defensores|the defenders)$",
+    "27 m (capitao america|captain america).*(guerra civil|civil war)",
+    "28 m ^(viuva negra|black widow)$",
+    "29 m ^(pantera negra|black panther)$",
+    "30 s ^(marvel.s )?(o justiceiro|justiceiro|the punisher)$",
+    "31 m (homem.aranha|spider.man).*(de volta ao lar|homecoming)",
+    "32 m ^(doutor estranho|doctor strange)$",
+    "33 m ^thor.*ragnarok",
+    "34 m (homem.formiga|ant.man) (e a vespa|and the wasp)$",
+    "35 m vingadores.*guerra infinita|avengers.*infinity war",
+    "36 m vingadores.*ultimato|avengers.*endgame",
+    "37 s ^loki$",
+    "38 s ^(what if|e se)[\\s.?]*$",
+    "39 s marvel zombies|zumbis da marvel|marvel zumbis",
+    "40 s ^wanda ?vision$",
+    "41 m shang.chi",
+    "42 s falcao e o soldado invernal|falcon and the winter soldier",
+    "43 m (homem.aranha|spider.man).*(longe de casa|far from home)",
+    "44 m ^(eternos|eternals)$",
+    "45 m (homem.aranha|spider.man).*(sem volta para casa|no way home)",
+    "46 m (doutor estranho|doctor strange).*(multiverso|multiverse)",
+    "47 s ^(gaviao arqueiro|hawkeye)$",
+    "48 s ^(cavaleiro da lua|moon knight)$",
+    "49 m wakanda para sempre|wakanda forever",
+    "50 s ^(eco|echo)$",
+    "51 s ^(mulher.hulk|she.hulk)",
+    "52 s ^ms\\.? marvel$",
+    "53 m ^thor.*(amor e trovao|love and thunder)",
+    "54 s ^(coracao de ferro|ironheart)$",
+    "55 ms lobisomem na noite|werewolf by night",
+    "56 ms (guardioes da galaxia|guardians of the galaxy).*(especial de festas|holiday special)",
+    "57 m quantumania",
+    "58 m ^(guardioes da galaxia|guardians of the galaxy).{0,6}(vol(ume)?\\.? ?)?(3|iii)\\b",
+    "59 s ^(invasao secreta|secret invasion)$",
+    "60 m ^(as marvels|the marvels)$",
+    "61 m deadpool (e|&|and) wolverine",
+    "62 s ^agatha",
+    "63 s (demolidor|daredevil).{0,4}(renascido|born again)",
+    "64 m (capitao america|captain america).*(admiravel mundo novo|brave new world)",
+    "65 m thunderbolts",
+    "66 m (quarteto fantastico|fantastic four).*(primeiros passos|first steps)",
+    "67 s ^wonder ?man$",
+    "68 ms one last kill|(justiceiro|punisher).{0,6}(especial|ultima|ultimo)",
+    "69 m (homem.aranha|spider.man).*(um novo dia|brand new day)",
+    "70 s ^(vision ?quest|visao)$"
+  ];
+  var MV_PH = [["Do começo até Guardiões Vol. 2", 1, 19], ["Era de Ultron até o Ultimato", 20, 36], ["Depois do Ultimato (Multiverso)", 37, 70]];
+  var Mv = {
+    list: null, anyM: null, anyS: null, groups: null, sig: '', api: null, total: 0,
+    init: function () {
+      var L = [], am = [], as = [], i, ln, a, b, k, r;
+      for (i = 0; i < MV_TXT.length; i++) {
+        ln = MV_TXT[i]; a = ln.indexOf(' '); b = ln.indexOf(' ', a + 1);
+        k = ln.substring(a + 1, b); r = ln.substring(b + 1);
+        L.push({ n: parseInt(ln.substring(0, a), 10), m: k.indexOf('m') > -1, s: k.indexOf('s') > -1, r: new RegExp(r) });
+        if (k.indexOf('m') > -1) am.push('(?:' + r + ')');
+        if (k.indexOf('s') > -1) as.push('(?:' + r + ')');
+        if (L[L.length - 1].n > Mv.total) Mv.total = L[L.length - 1].n;
+      }
+      Mv.list = L; Mv.anyM = new RegExp(am.join('|')); Mv.anyS = new RegExp(as.join('|'));
+    },
+    build: function () {
+      var hits = {}, seen = {}, L = Mv.list, i, j, c, t, e, n, k, lst;
+      for (i = 0; i < S.ch.length; i++) {
+        c = S.ch[i]; if (c.type !== 'movie' || c.adult) continue;
+        t = c.mvt; if (t === undefined) { t = sgClean(c.name); t = c.mvt = Mv.anyM.test(t) ? t : ''; }
+        if (!t || seen[c.url]) continue;
+        for (j = 0; j < L.length; j++) { e = L[j]; if (e.m && e.r.test(t)) { seen[c.url] = 1; (hits[e.n] || (hits[e.n] = [])).push(i); break; } }
+      }
+      for (i = 0; i < S.series.length; i++) {
+        c = S.series[i]; if (c.adult) continue;
+        t = c.mvt; if (t === undefined) { t = sgClean(c.name); t = c.mvt = Mv.anyS.test(t) ? t : ''; }
+        if (!t) continue;
+        for (j = 0; j < L.length; j++) { e = L[j]; if (e.s && e.r.test(t)) { (hits[e.n] || (hits[e.n] = [])).push(~i); break; } }
+      }
+      var all = { items: [], nums: [] }, found = 0, gs = [], ph = [];
+      for (k = 0; k < MV_PH.length; k++) ph.push({ name: MV_PH[k][0], kind: 'mix', items: [], nums: [], a: MV_PH[k][1], b: MV_PH[k][2] });
+      for (n = 1; n <= Mv.total; n++) {
+        lst = hits[n]; if (!lst) continue; found++;
+        for (j = 0; j < lst.length && j < 3; j++) {
+          all.items.push(lst[j]); all.nums.push(n);
+          for (k = 0; k < ph.length; k++) if (n >= ph[k].a && n <= ph[k].b) { ph[k].items.push(lst[j]); ph[k].nums.push(n); }
+        }
+      }
+      var busy = Cat.busy() || !!(S.bg && (S.bg.running || S.bg.wait));
+      gs.push({ name: 'Ordem cronológica · ' + found + ' de ' + Mv.total + (busy ? ' · procurando…' : ''), kind: 'mix', items: all.items, nums: all.nums });
+      Mv.groups = gs.concat(ph);
+      var p = S.pos.marvel;
+      if (p) { if (p.c >= Mv.groups.length) p.c = 0; if (p.i >= Mv.groups[p.c].items.length) p.i = Math.max(0, Mv.groups[p.c].items.length - 1); }
+    },
+    ensure: function () {
+      if (!Mv.list) { try { Mv.init(); } catch (e) { Mv.list = []; Mv.anyM = Mv.anyS = /$^/; } }
+      var sig = S.ch.length + '|' + S.series.length + '|' + (Cat.busy() ? 1 : 0) + '|' + (S.bg && S.bg.running ? 1 : 0);
+      if (!Mv.groups || sig !== Mv.sig) { Mv.sig = sig; try { Mv.build(); } catch (e) { Mv.groups = [{ name: 'Ordem cronológica', kind: 'mix', items: [], nums: [] }]; } }
+      if (S.api && Mv.api !== S.api) { Mv.api = S.api; setTimeout(function () { if (S.sec === 'marvel') bgLoadAll(); }, 0); }
+      return Mv.groups;
+    },
+    reset: function () { Mv.groups = null; Mv.api = null; Mv.sig = ''; }
+  };
   function sortGroups(order) {
     if (S.order !== 'az') return partAdult(order, function (g) { return g.adult; });
     for (var j = 0; j < order.length; j++) if (!order[j].k) order[j].k = sortKey(norm(order[j].name));
@@ -570,7 +703,7 @@
     for (j = 0; j < order.length; j++) if (order[j].na === order[j].items.length) order[j].adult = true;
     return sortGroups(order);
   }
-  function resetData() { S.ch = []; S.series = []; S.sKey = {}; S.byUrl = null; S.api = null; S.epg = {}; S.bg = null; Cat.reset(); }
+  function resetData() { S.ch = []; S.series = []; S.sKey = {}; S.byUrl = null; S.api = null; S.epg = {}; S.bg = null; Cat.reset(); try { Mv.reset(); } catch (e) {} }
   function seriesFor(title, logo, group, id) {
     var sn = norm(title), key = 's_' + sn, s = S.sKey[key];
     if (s === undefined) {
@@ -729,7 +862,7 @@
   var Cat = {
     st: {}, gen: 0, force: false, waiters: [],
     reset: function () { Cat.gen++; Cat.st = {}; Cat.waiters = []; Cat.armed = false; },
-    maybeStart: function () { if (Cat.armed && (S.sec === 'movie' || S.sec === 'series' || S.sec === 'search')) { Cat.armed = false; Cat.start(); } },
+    maybeStart: function () { if (Cat.armed && (S.sec === 'movie' || S.sec === 'series' || S.sec === 'search' || S.sec === 'marvel')) { Cat.armed = false; Cat.start(); } },
     busy: function () { return Cat.st.movie === 'loading' || Cat.st.series === 'loading'; },
     whenDone: function (fn) { if (Cat.busy()) Cat.waiters.push(fn); else fn(); },
     fire: function () { if (Cat.busy()) return; var w = Cat.waiters; Cat.waiters = []; for (var i = 0; i < w.length; i++) { try { w[i](); } catch (e) {} } },
@@ -832,6 +965,7 @@
     after: function () {
       Cat.fire();
       if (!Cat.busy() && S.sec === 'search' && S.query && S.mode === 'main') doSearch(S.query, true);
+      if (!Cat.busy() && S.sec === 'marvel' && S.mode === 'main') renderAll();
     }
   };
   function loadGroup(g, cb) {
@@ -1040,7 +1174,7 @@
   function bgLoadAll() {
     if (S.bg && (S.bg.running || S.bg.finished || S.bg.wait)) return;
     Cat.maybeStart();
-    if (Cat.busy()) { S.bg = { wait: true }; Cat.whenDone(function () { S.bg = null; if (S.sec === 'search' && S.query) bgLoadAll(); }); return; }
+    if (Cat.busy()) { S.bg = { wait: true }; Cat.whenDone(function () { S.bg = null; if ((S.sec === 'search' && S.query) || S.sec === 'marvel') bgLoadAll(); }); return; }
     var q = [], i, gm = S.groups.movie || [], gs = S.groups.series || [];
     for (i = 0; i < gm.length; i++) if (!gm[i].items && (S.unlocked || !gm[i].adult)) q.push(gm[i]);
     for (i = 0; i < gs.length; i++) if (!gs[i].items && (S.unlocked || !gs[i].adult)) q.push(gs[i]);
@@ -1048,7 +1182,7 @@
     var api = S.api;
     S.bg = { running: true, done: 0, total: q.length };
     var refreshT = null;
-    function refresh() { if (S.sec === 'search' && S.query && S.mode === 'main') doSearch(S.query, true); }
+    function refresh() { if (S.sec === 'search' && S.query && S.mode === 'main') doSearch(S.query, true); else if (S.sec === 'marvel' && S.mode === 'main') renderAll(); }
     var running = 0;
     function next() {
       if (S.api !== api) return;
@@ -1597,6 +1731,7 @@
     film: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3.5" width="18" height="17" rx="2"/><line x1="7.5" y1="3.5" x2="7.5" y2="20.5"/><line x1="16.5" y1="3.5" x2="16.5" y2="20.5"/><line x1="3" y1="12" x2="21" y2="12"/></svg>',
     series: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="2.5" y="7.5" width="15" height="13" rx="2"/><path d="M6.5 4h13a2 2 0 0 1 2 2v10"/><path d="M8.5 11v6l5-3z" fill="currentColor"/></svg>',
     ball: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M12 7.2l4.3 3.1-1.6 5h-5.4l-1.6-5z" fill="currentColor"/></svg>',
+    bolt: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 2L4.5 13.5h6L9 22l10-12.5h-6.2z"/></svg>',
     star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.8l2.8 6 6.5.6-4.9 4.3 1.5 6.4L12 16.8 6.1 20.1l1.5-6.4-4.9-4.3 6.5-.6z"/></svg>',
     lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>',
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
@@ -1619,8 +1754,8 @@
     down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 4v12M6 11l6 6 6-6M5 20h14"/></svg>'
   };
   function mi(n, cls) { return '<span class="' + (cls || 'ti') + '">' + MICONS[n] + '</span>'; }
-  var TABS = [{ id: 'live', label: 'Ao Vivo', ic: 'tv' }, { id: 'movie', label: 'Filmes', ic: 'film' }, { id: 'series', label: 'Séries', ic: 'series' }, { id: 'events', label: 'Eventos', ic: 'ball' }, { id: 'fav', label: 'Favoritos', ic: 'star' }];
-  var TITLES = { live: 'TV ao Vivo', movie: 'Filmes', series: 'Séries', events: 'Eventos do dia', fav: 'Favoritos e recentes', search: 'Pesquisa' };
+  var TABS = [{ id: 'live', label: 'Ao Vivo', ic: 'tv' }, { id: 'movie', label: 'Filmes', ic: 'film' }, { id: 'series', label: 'Séries', ic: 'series' }, { id: 'marvel', label: 'Marvel', ic: 'bolt' }, { id: 'events', label: 'Eventos', ic: 'ball' }, { id: 'fav', label: 'Favoritos', ic: 'star' }];
+  var TITLES = { live: 'TV ao Vivo', movie: 'Filmes', series: 'Séries', marvel: 'Universo Marvel', events: 'Eventos do dia', fav: 'Favoritos e recentes', search: 'Pesquisa' };
   var PAGE = 60;
 
   /* ---------- ganchos usados pela parte de dados (vinda do app da TV) ---------- */
@@ -1909,6 +2044,7 @@
     if (S.sec === 'live') h = viewLive();
     else if (S.sec === 'movie' || S.sec === 'series') h = viewVod(S.sec);
     else if (S.sec === 'events') h = viewEvents();
+    else if (S.sec === 'marvel') h = viewMarvel();
     else if (S.sec === 'fav') h = viewFav();
     else if (S.sec === 'search') h = viewSearch();
     v.innerHTML = h; v.scrollTop = keep;
@@ -1974,6 +2110,19 @@
     }
     if (!tot && !Cat.busy() && !(S.bg && S.bg.running)) h = '<div class="empty">Nada encontrado para "' + esc(S.query) + '".</div>' + h;
     return h;
+  }
+  function viewMarvel() {
+    var gs = Mv.ensure(), p = S.pos.marvel, i; if (!gs[p.c]) p.c = 0;
+    var g = gs[p.c], busy = Cat.busy() || !!(S.bg && (S.bg.running || S.bg.wait)), h = '<div class="chips">';
+    for (i = 0; i < gs.length; i++) h += '<button class="chip' + (i === p.c ? ' on' : '') + '" data-act="mvg" data-v="' + i + '">' + esc(i ? gs[i].name : 'Tudo em ordem') + ' (' + gs[i].items.length + ')</button>';
+    h += '</div><div class="note">' + esc(gs[0].name.replace(' · procurando…', '')) + (busy ? ' · procurando na sua lista…' : '') + '</div>';
+    if (!g.items.length) return h + (busy ? '<div class="loadbox"><div class="spin"></div>Procurando os filmes e séries da Marvel...</div>' : '<div class="empty">Nenhum filme ou série desta parte da Marvel foi encontrado na sua lista.</div>');
+    h += '<div class="grid">';
+    for (i = 0; i < g.items.length; i++) {
+      var x = g.items[i], k = x < 0 ? 'series' : 'movie';
+      h += card(k, x < 0 ? ~x : x).replace('<div class="ps">', '<div class="ps"><span class="mvn">' + g.nums[i] + '</span>');
+    }
+    return h + '</div>';
   }
   function viewEvents() {
     Ev.ensure();
@@ -2265,6 +2414,7 @@
     if (a === 'ep') { playEpisode(i); return; }
     if (a === 'ev') { evOpen(i); return; }
     if (a === 'evg') { S.pos.events.c = +v; renderAll(); return; }
+    if (a === 'mvg') { S.pos.marvel.c = +v; $('view').scrollTop = 0; S.lastView = null; renderAll(); return; }
     if (a === 'smore') { var key = 'search|' + v; S.shown[key] = (S.shown[key] || 30) + 60; renderAll(); return; }
     if (a === 'dlg') { closeDlg(+v); return; }
     if (a === 'lsel') { var L = S.lists[+v]; if (L.id !== S.activeId) { S.activeId = L.id; saveLists(); closePage(); startLoad(false); } return; }

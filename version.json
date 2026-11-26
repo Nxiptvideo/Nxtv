@@ -1,6 +1,6 @@
 {
   "web": {
-    "ver": "5.4.0",
+    "ver": "5.5.0",
     "files": {
       "js": "web/app.js",
       "css": "web/style.css",
@@ -8,8 +8,8 @@
     }
   },
   "roku": {
-    "ver": "1.5.0",
+    "ver": "1.6.0",
     "zip": "roku/NxTvLib.zip"
   },
-  "notes": "Filmes de saga juntos e em ordem cronológica (Harry Potter, Marvel, Star Wars, Velozes e Furiosos e outras; continuações numeradas também)"
+  "notes": "Nova aba Universo Marvel: filmes, séries e curtas da Marvel na ordem cronológica"
 }
