@@ -3,7 +3,7 @@
   'use strict';
   window.NX_APP_OK = true;
   var ANDROID = !!window.NxAndroid;
-  var APP_VER = '1.0.4';
+  var APP_VER = '1.0.5';
   var UPD_BASE = 'https://raw.githubusercontent.com/Nxiptvideo/nxtv/main/';
   var ICONS = {};
   function openFullLive() {}
@@ -153,11 +153,405 @@
     return b.length ? a.concat(b) : a;
   }
   function sortIdx(arr, objOf) { // ordena índices sem guardar a chave em cada item (economiza memória)
-    if (S.order !== 'az') return partAdult(arr, function (x) { return objOf(x).adult; });
+    if (S.order !== 'az') { var pa = partAdult(arr, function (x) { return objOf(x).adult; }); return objOf === chObj ? sagaPass(pa) : pa; }
     var n = arr.length, keys = new Array(n), pos = new Array(n), i, o, out = new Array(n);
     for (i = 0; i < n; i++) { o = objOf(arr[i]); keys[i] = (o.adult ? '1' : '0') + sortKey(o.n || norm(o.name)); pos[i] = i; }
     pos.sort(function (a, b) { var A = keys[a], B = keys[b]; return A < B ? -1 : (A > B ? 1 : 0); });
     for (i = 0; i < n; i++) out[i] = arr[pos[i]];
+    return objOf === chObj ? sagaPass(out) : out;
+  }
+  /* ================= sagas: filmes da mesma saga juntos, em ordem cronológica =================
+     Vale nas duas ordens (igual à lista e alfabética). A saga inteira aparece no lugar do primeiro
+     filme dela; o resto da lista não muda. Sagas conhecidas seguem a ordem da história (tabela abaixo);
+     as outras seguem o número da continuação (Toy Story 2, Rocky III...) ou o ano entre parênteses. */
+  var SAGA_TXT = [
+    "#hp harry potter",
+    "8 (reliquias da morte|deathly hallows).*(parte|part)\\s*(2|ii)\\b",
+    "7 reliquias da morte|deathly hallows",
+    "1 pedra filosofal|philosopher|sorcerer",
+    "2 camara secreta|chamber of secrets",
+    "3 azkaban",
+    "4 calice de fogo|goblet of fire",
+    "5 ordem da fenix|order of the phoenix",
+    "6 enigma do principe|half.blood prince",
+    "#af animais fantasticos|fantastic beasts",
+    "3 dumbledore",
+    "2 grindelwald",
+    "1 .",
+    "#tm senhor dos aneis|lord of the rings|hobbit|rohirrim",
+    "0 rohirrim",
+    "1 jornada inesperada|unexpected journey",
+    "2 smaug",
+    "3 cinco exercitos|five armies",
+    "4 sociedade do anel|fellowship",
+    "5 duas torres|two towers",
+    "6 retorno do rei|return of the king",
+    "#sw star wars|guerra nas estrelas|rogue one|han solo|mandalorian",
+    "2.5 clone wars|guerra dos clones",
+    "1 ameaca fantasma|phantom menace|episodio (i|1)\\b",
+    "2 ataque dos clones|attack of the clones|episodio (ii|2)\\b",
+    "3 vinganca dos sith|revenge of the sith|episodio (iii|3)\\b",
+    "3.5 han solo|^solo\\b",
+    "3.7 rogue one",
+    "4 nova esperanca|new hope|episodio (iv|4)\\b",
+    "5 imperio contra.ataca|empire strikes|episodio (v|5)\\b",
+    "6 retorno de jedi|return of the jedi|episodio (vi|6)\\b",
+    "6.5 mandalorian",
+    "7 despertar da forca|force awakens|episodio (vii|7)\\b",
+    "8 ultimos jedi|last jedi|episodio (viii|8)\\b",
+    "9 ascensao skywalker|rise of skywalker|episodio (ix|9)\\b",
+    "4 ^guerra nas estrelas$|^star wars$",
+    "#mcu (?:primeiro vingador|first avenger)|(?:^capita marvel$|^captain marvel$)|(?:^homem de ferro (3|iii)$|^iron man (3|iii)$)|(?:^homem de ferro (2|ii)$|^iron man (2|ii)$)|(?:^homem de ferro$|^iron man$)|(?:incrivel hulk|incredible hulk)|(?:^thor.*(mundo sombrio|dark world))|(?:^thor.*ragnarok)|(?:^thor.*(amor e trovao|love and thunder))|(?:^thor$)|(?:vingadores.*guerra infinita|avengers.*infinity war)|(?:vingadores.*ultimato|avengers.*endgame)|(?:era de ultron|age of ultron)|(?:vingadores.*doomsday|avengers.*doomsday)|(?:^(os )?vingadores( - the avengers| the avengers)?$|^(the )?avengers$|^marvel.s the avengers$)|(?:soldado invernal|winter soldier)|(?:(capitao america|captain america).*(guerra civil|civil war))|(?:(capitao america|captain america).*(admiravel mundo novo|brave new world))|(?:(guardioes da galaxia|guardians of the galaxy).*(especial de festas|holiday special))|(?:(guardioes da galaxia|guardians of the galaxy).*(3|iii)\\b)|(?:(guardioes da galaxia|guardians of the galaxy).*(2|ii)\\b)|(?:^guardioes da galaxia$|^guardians of the galaxy$)|(?:quantumania)|(?:(homem.formiga|ant.man) (e a vespa|and the wasp))|(?:^(homem.formiga|ant.man)$)|(?:^(viuva negra|black widow)$)|(?:wakanda)|(?:^(pantera negra|black panther)$)|(?:(homem.aranha|spider.man).*(de volta ao lar|homecoming))|(?:(homem.aranha|spider.man).*(longe de casa|far from home))|(?:(homem.aranha|spider.man).*(sem volta para casa|no way home))|(?:(homem.aranha|spider.man).*(um novo dia|brand new day))|(?:(doutor estranho|doctor strange).*(multiverso|multiverse))|(?:^(doutor estranho|doctor strange)$)|(?:shang.chi)|(?:^(eternos|eternals)$)|(?:^(as marvels|the marvels)$)|(?:deadpool (e|&|and) wolverine)|(?:thunderbolts)|(?:(quarteto fantastico|fantastic four).*(primeiros passos|first steps))",
+    "1 primeiro vingador|first avenger",
+    "2 ^capita marvel$|^captain marvel$",
+    "12 ^homem de ferro (3|iii)$|^iron man (3|iii)$",
+    "4 ^homem de ferro (2|ii)$|^iron man (2|ii)$",
+    "3 ^homem de ferro$|^iron man$",
+    "5 incrivel hulk|incredible hulk",
+    "13 ^thor.*(mundo sombrio|dark world)",
+    "21 ^thor.*ragnarok",
+    "34 ^thor.*(amor e trovao|love and thunder)",
+    "6 ^thor$",
+    "23 vingadores.*guerra infinita|avengers.*infinity war",
+    "24 vingadores.*ultimato|avengers.*endgame",
+    "17 era de ultron|age of ultron",
+    "42 vingadores.*doomsday|avengers.*doomsday",
+    "7 ^(os )?vingadores( - the avengers| the avengers)?$|^(the )?avengers$|^marvel.s the avengers$",
+    "14 soldado invernal|winter soldier",
+    "19 (capitao america|captain america).*(guerra civil|civil war)",
+    "40 (capitao america|captain america).*(admiravel mundo novo|brave new world)",
+    "35.5 (guardioes da galaxia|guardians of the galaxy).*(especial de festas|holiday special)",
+    "37 (guardioes da galaxia|guardians of the galaxy).*(3|iii)\\b",
+    "16 (guardioes da galaxia|guardians of the galaxy).*(2|ii)\\b",
+    "15 ^guardioes da galaxia$|^guardians of the galaxy$",
+    "35 quantumania",
+    "22 (homem.formiga|ant.man) (e a vespa|and the wasp)",
+    "18 ^(homem.formiga|ant.man)$",
+    "19.5 ^(viuva negra|black widow)$",
+    "33 wakanda",
+    "20 ^(pantera negra|black panther)$",
+    "20.5 (homem.aranha|spider.man).*(de volta ao lar|homecoming)",
+    "26 (homem.aranha|spider.man).*(longe de casa|far from home)",
+    "27 (homem.aranha|spider.man).*(sem volta para casa|no way home)",
+    "41 (homem.aranha|spider.man).*(um novo dia|brand new day)",
+    "31 (doutor estranho|doctor strange).*(multiverso|multiverse)",
+    "20.7 ^(doutor estranho|doctor strange)$",
+    "25 shang.chi",
+    "28 ^(eternos|eternals)$",
+    "38 ^(as marvels|the marvels)$",
+    "39 deadpool (e|&|and) wolverine",
+    "40.5 thunderbolts",
+    "40.7 (quarteto fantastico|fantastic four).*(primeiros passos|first steps)",
+    "#vf velozes e furiosos|\\+ ?velozes|fast (and|&) (the )?furious|tokyo drift|hobbs (e|&|and) shaw|fast five|furious (7|seven)|^fast x$|^f9\\b|2 fast 2 furious",
+    "6.5 desafio em toquio|tokyo drift",
+    "8.5 hobbs (e|&|and) shaw",
+    "2 \\+ ?velozes|2 fast 2 furious|furiosos (2|ii)\\b",
+    "4 furiosos (4|iv)\\b|^fast (and|&) furious( 4)?$",
+    "5 operacao rio|furiosos (5|v)\\b|fast five",
+    "6 furiosos (6|vi)\\b|furious (6|vi)\\b",
+    "7 furiosos (7|vii)\\b|furious (7|seven)",
+    "8 furiosos (8|viii)\\b|fate of the furious",
+    "9 furiosos (9|ix)\\b|^f9\\b",
+    "10 furiosos (10|x)\\b|^fast x",
+    "1 .",
+    "#shrek ^shrek",
+    "4 para sempre|forever after|shrek (4|iv)\\b",
+    "3 terceiro|the third|shrek (3|iii)\\b",
+    "2 shrek (2|ii)\\b",
+    "1 ^shrek$",
+    "#jv jogos vorazes|hunger games",
+    "0 cantiga|ballad",
+    "0.5 amanhecer na colheita|sunrise on the reaping",
+    "2 em chamas|catching fire",
+    "4 (esperanca|mockingjay).*((parte|part)\\s*(2|ii)\\b|final)",
+    "3 esperanca|mockingjay",
+    "1 .",
+    "#crep crepusculo|twilight saga|^twilight$",
+    "5 (amanhecer|breaking dawn).*(parte|part)\\s*(2|ii)\\b",
+    "4 amanhecer|breaking dawn",
+    "2 lua nova|new moon",
+    "3 eclipse",
+    "1 .",
+    "#pc piratas do caribe|pirates of the caribbean",
+    "1 perola negra|black pearl",
+    "2 bau da morte|dead man.s chest",
+    "3 fim do mundo|world.s end",
+    "4 aguas misteriosas|stranger tides",
+    "5 salazar|dead men tell",
+    "#jp jurassic|parque dos dinossauros",
+    "2 mundo perdido|lost world",
+    "3 jurassic park (3|iii)\\b",
+    "5 reino ameacado|fallen kingdom",
+    "6 dominio|dominion",
+    "7 recomeco|rebirth",
+    "4 jurassic world",
+    "1 .",
+    "#mi missao.{0,3}impossivel|mission.{0,3}impossible",
+    "8 acerto final|final reckoning|acerto de contas.*(parte|part)\\s*(2|ii)\\b",
+    "7 acerto de contas|dead reckoning",
+    "6 fallout",
+    "5 nacao secreta|rogue nation",
+    "4 protocolo fantasma|ghost protocol",
+    "3 (impossivel|impossible) (3|iii)\\b",
+    "2 (impossivel|impossible) (2|ii)\\b",
+    "1 .",
+    "#mx ^(the )?matrix\\b|animatrix",
+    "2.5 animatrix",
+    "4 resurrections|ressurreicoes",
+    "3 revolutions",
+    "2 reloaded",
+    "1 .",
+    "#t800 exterminador do futuro|terminator",
+    "6 destino sombrio|dark fate",
+    "5 genesis|genisys",
+    "4 salvacao|salvation",
+    "3 rebeliao das maquinas|rise of the machines|futuro (3|iii)\\b|terminator (3|iii)\\b",
+    "2 julgamento final|judgment day|futuro (2|ii)\\b|terminator (2|ii)\\b",
+    "1 .",
+    "#rocky ^rocky\\b(?! horror)|^creed\\b",
+    "9 creed (3|iii)\\b",
+    "8 creed (2|ii)\\b",
+    "7 ^creed",
+    "6 balboa",
+    "5 rocky (5|v)\\b",
+    "4 rocky (4|iv)\\b",
+    "3 rocky (3|iii)\\b",
+    "2 rocky (2|ii)\\b",
+    "1 .",
+    "#alien ^prometheus$|^alien$|^alien.{0,4}(8|oitavo).{0,2} passageiro|^alien.{0,3}(covenant|romulus|a ressurreicao|resurrection|3|iii)\\b|^aliens(.{0,3}o resgate)?$",
+    "1 prometheus",
+    "2 covenant",
+    "3.5 romulus",
+    "6 ressurreicao|resurrection",
+    "5 ^alien.{0,3}(3|iii)\\b",
+    "4 ^aliens",
+    "3 .",
+    "#pm planeta dos macacos.{0,3}(a origem|o confronto|a guerra|o reinado)|(rise|dawn|war for|kingdom) of the planet of the apes",
+    "1 origem|^rise",
+    "2 confronto|^dawn",
+    "3 guerra|^war",
+    "4 reinado|^kingdom",
+    "#jw john wick",
+    "3.5 bailarina|ballerina",
+    "4 (4|iv)\\b|baba yaga",
+    "3 (3|iii)\\b|parabellum",
+    "2 (2|ii)\\b|um novo dia para matar",
+    "1 .",
+    "#indy indiana jones|cacadores da arca perdida|raiders of the lost ark",
+    "1 templo da perdicao|temple of doom",
+    "2 arca perdida|lost ark",
+    "3 ultima cruzada|last crusade",
+    "4 caveira de cristal|crystal skull",
+    "5 reliquia do destino|dial of destiny",
+    "#bttf de volta para o futuro|back to the future",
+    "3 (3|iii)\\b",
+    "2 (2|ii)\\b",
+    "1 .",
+    "#gf poderoso chefao|godfather",
+    "3 desfecho|coda|(3|iii)\\b",
+    "2 (2|ii)\\b",
+    "1 .",
+    "#mmf meu malvado favorito|despicable me|^minions\\b",
+    "2 ^minions.{0,3}(2|ii)\\b|origem de gru|rise of gru",
+    "1 ^minions",
+    "6 (favorito|despicable me) (4|iv)\\b",
+    "5 (favorito|despicable me) (3|iii)\\b",
+    "4 (favorito|despicable me) (2|ii)\\b",
+    "3 .",
+    "#nemo procurando (nemo|dory)|finding (nemo|dory)",
+    "1 nemo",
+    "2 dory",
+    "#conj invocacao do mal|conjuring|annabelle|^a freira( (2|ii))?$|^the nun( (2|ii))?$|chorona|llorona",
+    "3 freira (2|ii)|\\bnun (2|ii)",
+    "1 freira|\\bnun\\b",
+    "2 criacao do mal|creation",
+    "6 de volta para casa|comes home",
+    "7 chorona|llorona",
+    "10 ultimo ritual|last rites|(mal|conjuring) 4\\b",
+    "9 ordem do demonio|devil made me|(mal|conjuring) (3|iii)\\b",
+    "8 (mal|conjuring) (2|ii)\\b",
+    "4 annabelle",
+    "5 .",
+    "#ins ^sobrenatural\\b|^insidious\\b",
+    "1 origem|chapter 3",
+    "2 ultima chave|last key",
+    "5 porta vermelha|red door",
+    "4 capitulo (2|dois)|chapter 2",
+    "3 .",
+    "#duna ^duna\\b|^dune\\b",
+    "3 messias|messiah",
+    "2 parte (2|dois|ii)|part (two|2|ii)",
+    "1 .",
+    "#avatar ^avatar$|^avatar.{0,3}(o caminho da agua|the way of water|fogo e cinzas|fire and ash)",
+    "3 fogo e cinzas|fire and ash",
+    "2 caminho da agua|way of water",
+    "1 .",
+    "#tf ^transformers|^bumblebee$",
+    "0 transformers.{0,3}(o inicio|one)$",
+    "1 bumblebee",
+    "2 despertar das feras|rise of the beasts",
+    "4 vinganca dos derrotados|revenge of the fallen",
+    "5 lado oculto da lua|dark of the moon",
+    "6 era da extincao|age of extinction",
+    "7 ultimo cavaleiro|last knight",
+    "3 ^transformers$",
+    "#madmax ^mad max|^furiosa\\b",
+    "3.5 furiosa",
+    "4 estrada da furia|fury road",
+    "3 cupula do trovao|thunderdome",
+    "2 (2|ii)\\b|cacada continua|road warrior",
+    "1 .",
+    "#div ^(a serie )?divergente|insurgente|convergente|^divergent|^insurgent|^allegiant",
+    "2 insurgente|insurgent",
+    "3 convergente|allegiant",
+    "1 .",
+    "#maze maze runner",
+    "2 prova de fogo|scorch",
+    "3 cura mortal|death cure",
+    "1 .",
+    "#kb ^kill bill",
+    "2 (2|ii)\\b",
+    "1 .",
+    "#bb ^bad boys",
+    "4 ate o fim|ride or die",
+    "3 para sempre|for life",
+    "2 (2|ii)\\b",
+    "1 .",
+    "#dk batman begins|batman.{0,3}o inicio|o cavaleiro das trevas|the dark knight",
+    "3 ressurge|rises",
+    "2 cavaleiro das trevas|dark knight",
+    "1 .",
+    "#rambo ^rambo|programado para matar|^first blood",
+    "5 ate o fim|last blood",
+    "1 programado para matar|first blood",
+    "3 rambo (3|iii)\\b",
+    "2 rambo (2|ii)\\b|a missao",
+    "4 .",
+    "#ocean homens e (um|outro|um novo) segredo|oito mulheres e um segredo|^ocean.s (eleven|twelve|thirteen|8)",
+    "1 onze|eleven",
+    "2 doze|twelve",
+    "3 treze|thirteen",
+    "4 oito|ocean.s 8",
+    "#venom ^venom\\b",
+    "3 ultima rodada|last dance",
+    "2 carnificina|carnage",
+    "1 .",
+    "#ww ^(mulher.maravilha|wonder woman)( 1984)?$",
+    "2 1984",
+    "1 .",
+    "#it ^it\\b.{0,4}(a coisa|capitulo|chapter)",
+    "2 capitulo (dois|2)|chapter (two|2)",
+    "1 .",
+    "#50 cinquenta tons|fifty shades",
+    "2 mais escuros|darker",
+    "3 liberdade|freed",
+    "1 .",
+    "#narnia narnia",
+    "1 leao|lion",
+    "2 caspian",
+    "3 alvorada|dawn treader",
+    "#topgun ^top gun\\b",
+    "2 maverick",
+    "1 .",
+    "#mv kong.{0,3}a ilha da caveira|skull island|^godzilla( (2|ii))?.{0,3}(rei dos monstros|king of the monsters)|^godzilla$|godzilla (vs\\.?|x|versus) kong|godzilla (e|and|x) kong.{0,3}(o novo imperio|the new empire)",
+    "1 ilha da caveira|skull island",
+    "3 rei dos monstros|king of the monsters",
+    "5 novo imperio|new empire",
+    "4 vs\\.?|versus|\\bx kong",
+    "2 .",
+    "#007 (?:satanico dr\\.? no|^dr\\.? no$)|(?:moscou contra 007|from russia with love)|(?:goldfinger)|(?:chantagem atomica|thunderball)|(?:so se vive duas vezes|you only live twice)|(?:servico secreto de sua majestade|her majesty.s secret service)|(?:diamantes sao eternos|diamonds are forever)|(?:(007|bond).*viva e deixe morrer|live and let die)|(?:pistola de ouro|golden gun)|(?:espiao que me amava|spy who loved me)|(?:foguete da morte|moonraker)|(?:(007|bond).*somente para seus olhos|for your eyes only)|(?:octopussy)|(?:(007|bond).*na mira dos assassinos|a view to a kill)|(?:(007|bond).*marcado para a morte|living daylights)|(?:(007|bond).*permissao para matar|licen[cs]e to kill)|(?:goldeneye)|(?:amanha nunca morre|tomorrow never dies)|(?:mundo nao e o bastante|world is not enough)|(?:(007|bond).*um novo dia para morrer|die another day)|(?:cassino royale|casino royale)|(?:quantum of solace)|(?:skyfall)|(?:(007|bond).*spectre|^spectre$)|(?:sem tempo para morrer|no time to die)",
+    "1 satanico dr\\.? no|^dr\\.? no$",
+    "2 moscou contra 007|from russia with love",
+    "3 goldfinger",
+    "4 chantagem atomica|thunderball",
+    "5 so se vive duas vezes|you only live twice",
+    "6 servico secreto de sua majestade|her majesty.s secret service",
+    "7 diamantes sao eternos|diamonds are forever",
+    "8 (007|bond).*viva e deixe morrer|live and let die",
+    "9 pistola de ouro|golden gun",
+    "10 espiao que me amava|spy who loved me",
+    "11 foguete da morte|moonraker",
+    "12 (007|bond).*somente para seus olhos|for your eyes only",
+    "13 octopussy",
+    "14 (007|bond).*na mira dos assassinos|a view to a kill",
+    "15 (007|bond).*marcado para a morte|living daylights",
+    "16 (007|bond).*permissao para matar|licen[cs]e to kill",
+    "17 goldeneye",
+    "18 amanha nunca morre|tomorrow never dies",
+    "19 mundo nao e o bastante|world is not enough",
+    "20 (007|bond).*um novo dia para morrer|die another day",
+    "21 cassino royale|casino royale",
+    "22 quantum of solace",
+    "23 skyfall",
+    "24 (007|bond).*spectre|^spectre$",
+    "25 sem tempo para morrer|no time to die"
+  ];
+  var SAGAS = null, SAGA_ANY = null;
+  var SG_YR = /[\(\[]\s*((?:19|20)\d\d)\s*[\)\]]|\s-\s*((?:19|20)\d\d)\s*$/, SG_BR = /\[[^\]]*\]|\([^)]*\)|\{[^}]*\}/g;
+  var SG_TAG = /(^|[\s\-|:])(dublado|dub|legendado|leg|dual audio|dual|nacional|4k|uhd|fhd|full hd|hd|1080p|720p|2160p|h265|hevc|hdr|imax|remasterizado|versao estendida|sem cortes)(?=$|[\s\-|:])/g;
+  var SG_NUM = /[\s,]+(?:(?:parte|part|capitulo|chapter|vol\.?|volume)\s*)?(\d{1,2}|i{1,3}|iv|vi{0,3}|ix)$/;
+  var SG_HASBR = /[\[({]/, SG_HASTAG = /dub|leg|dual|nacional|4k|hd|1080|720|2160|h265|hevc|hdr|imax|remaster|estendida|cortes/;
+  var SG_TRIM = /^[\s\-:|.,;_]+|[\s\-:|.,;_]+$/g, SG_SP = /\s{2,}/g, SG_CUT = /:| - /, SG_NAN = /[^a-z0-9]+/g;
+  var ROMAN = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9 };
+  function sagaInit() {
+    SAGAS = []; var cur = null, all = [], i, ln, sp;
+    for (i = 0; i < SAGA_TXT.length; i++) {
+      ln = SAGA_TXT[i]; sp = ln.indexOf(' ');
+      if (ln.charAt(0) === '#') { cur = { id: ln.substring(1, sp), m: new RegExp(ln.substring(sp + 1)), e: [] }; SAGAS.push(cur); all.push('(?:' + ln.substring(sp + 1) + ')'); }
+      else cur.e.push([parseFloat(ln.substring(0, sp)), new RegExp(ln.substring(sp + 1))]);
+    }
+    SAGA_ANY = new RegExp(all.join('|'));
+  }
+  function sagaOf(name) {
+    var t = norm(name), y = 0, m, i, j, s, head, cut, num = 1, base;
+    if (t.indexOf('\u2013') > -1 || t.indexOf('\u2014') > -1) t = t.replace(/[\u2013\u2014]/g, '-');
+    if (HASDIG.test(t) && (m = SG_YR.exec(t))) { y = parseInt(m[1] || m[2], 10); t = t.replace(SG_YR, ' '); }
+    if (t.indexOf('|') > -1) t = t.replace(/^\|[^|]{1,6}\|\s*/, '').replace(/^[a-z0-9]{2,4}\s*\|\s*/, '');
+    if (SG_HASBR.test(t)) t = t.replace(SG_BR, ' ');
+    if (SG_HASTAG.test(t)) t = t.replace(SG_TAG, '$1').replace(SG_TAG, '$1');
+    t = t.replace(SG_TRIM, '').replace(SG_SP, ' ');
+    if (!t) return null;
+    if (SAGA_ANY.test(t)) for (i = 0; i < SAGAS.length; i++) {
+      s = SAGAS[i]; if (!s.m.test(t)) continue;
+      for (j = 0; j < s.e.length; j++) if (s.e[j][1].test(t)) return { k: 'd' + s.id, o: s.e[j][0], y: y, t: t, d: 1 };
+    }
+    // sem tabela: continuação numerada ou mesmo nome antes de ":" / " - "
+    head = t; cut = t.search(SG_CUT); if (cut > 0) head = t.substring(0, cut);
+    m = SG_NUM.exec(head);
+    if (m && m.index >= 3) { num = ROMAN[m[1]] || parseInt(m[1], 10) || 1; head = head.substring(0, m.index); }
+    base = head.replace(SG_NAN, '');
+    if (base.length < 3) return null;
+    return { k: 'g' + base, o: num, y: y, t: t, d: 0 };
+  }
+  function sagaCmp(a, b) {
+    if (a.d) return (a.o - b.o) || (a.y && b.y ? a.y - b.y : 0) || (a.i - b.i);
+    if (a.ay) return (a.y - b.y) || (a.o - b.o) || (a.i - b.i);
+    return (a.o - b.o) || (a.y && b.y ? a.y - b.y : 0) || (a.t < b.t ? -1 : (a.t > b.t ? 1 : 0)) || (a.i - b.i);
+  }
+  function sagaPass(arr) {
+    var n = arr.length, inf = new Array(n), cnt = {}, any = false, i, j, c, s, bk = {}, lst, out, k, ay;
+    if (n < 2) return arr;
+    if (!SAGAS) { try { sagaInit(); } catch (e) { SAGAS = []; SAGA_ANY = /$^/; } }
+    for (i = 0; i < n; i++) {
+      c = S.ch[arr[i]]; s = null;
+      if (c && c.type === 'movie' && !c.adult && c.name) { try { s = sagaOf(c.name); } catch (e) { s = null; } }
+      if (s) { s.i = i; cnt[s.k] = (cnt[s.k] || 0) + 1; if (cnt[s.k] === 2) any = true; }
+      inf[i] = s;
+    }
+    if (!any) return arr;
+    for (i = 0; i < n; i++) { s = inf[i]; if (s && cnt[s.k] > 1) (bk[s.k] || (bk[s.k] = [])).push(s); }
+    for (k in bk) {
+      lst = bk[k]; ay = true;
+      for (j = 0; j < lst.length; j++) if (!lst[j].y) { ay = false; break; }
+      for (j = 0; j < lst.length; j++) lst[j].ay = ay;
+      lst.sort(sagaCmp);
+    }
+    out = [];
+    for (i = 0; i < n; i++) {
+      s = inf[i];
+      if (s && cnt[s.k] > 1) { lst = bk[s.k]; if (lst) { for (j = 0; j < lst.length; j++) out.push(arr[lst[j].i]); bk[s.k] = null; } }
+      else out.push(arr[i]);
+    }
     return out;
   }
   function sortGroups(order) {

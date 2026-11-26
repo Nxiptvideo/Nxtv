@@ -1,6 +1,6 @@
 {
   "web": {
-    "ver": "5.3.0",
+    "ver": "5.4.0",
     "files": {
       "js": "web/app.js",
       "css": "web/style.css",
@@ -8,8 +8,8 @@
     }
   },
   "roku": {
-    "ver": "1.4.0",
+    "ver": "1.5.0",
     "zip": "roku/NxTvLib.zip"
   },
-  "notes": "Antitravamento refeito: buffer maior, reconexão mais rápida e configuração FORTE agora fica salva"
+  "notes": "Filmes de saga juntos e em ordem cronológica (Harry Potter, Marvel, Star Wars, Velozes e Furiosos e outras; continuações numeradas também)"
 }
